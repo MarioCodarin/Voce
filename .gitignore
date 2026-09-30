@@ -1,0 +1,6 @@
+.build/
+dist/
+Voce.app
+.DS_Store
+*.xcuserstate
+Assets/AppIcon.iconset/
