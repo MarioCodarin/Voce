@@ -38,6 +38,11 @@ struct OpenRouterClientTests {
         #expect(parseError(status: 429) == .server(status: 429, message: "Errore 429"))
     }
 
+    @Test func emptyKeyFailsFast() {
+        #expect(throws: TranscribeError.missingKey) { try OpenRouterClient(apiKey: "").validateKey() }
+        #expect(!TranscribeError.missingKey.isRetryable)
+    }
+
     @Test func retryableClassification() {
         #expect(TranscribeError.network.isRetryable)
         #expect(TranscribeError.server(status: 429, message: "").isRetryable)

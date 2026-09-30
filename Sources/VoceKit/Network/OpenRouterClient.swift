@@ -2,7 +2,7 @@ import Foundation
 
 /// Talks to OpenRouter's audio transcription endpoint.
 struct OpenRouterClient: Sendable {
-    private let apiKey: String?
+    private let apiKey: String
     private let session: URLSession
     private let retryDelay: Duration
 
@@ -11,9 +11,14 @@ struct OpenRouterClient: Sendable {
         session: URLSession = .shared,
         retryDelay: Duration = .seconds(2)
     ) {
-        self.apiKey = apiKey
+        self.apiKey = apiKey ?? Secrets.openRouterKey
         self.session = session
         self.retryDelay = retryDelay
+    }
+
+    /// Fails fast when no key is configured, before any audio work is done.
+    func validateKey() throws {
+        guard !apiKey.isEmpty else { throw TranscribeError.missingKey }
     }
 
     /// Transcribes one audio file, retrying transient failures with exponential backoff.
@@ -30,8 +35,7 @@ struct OpenRouterClient: Sendable {
     }
 
     private func send(_ fileURL: URL) async throws -> String {
-        let key = apiKey ?? Secrets.openRouterKey
-        guard !key.isEmpty else { throw TranscribeError.missingKey }
+        try validateKey()
         let multipart = MultipartBody()
         let bodyURL = TempFiles.url(extension: "multipart")
         defer { TempFiles.remove(bodyURL) }
@@ -43,7 +47,7 @@ struct OpenRouterClient: Sendable {
 
         var request = URLRequest(url: TranscriptionConfig.endpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue(TranscriptionConfig.appTitle, forHTTPHeaderField: "X-Title")
         request.setValue(TranscriptionConfig.referer, forHTTPHeaderField: "HTTP-Referer")
         request.setValue(multipart.contentType, forHTTPHeaderField: "Content-Type")

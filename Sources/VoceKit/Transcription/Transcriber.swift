@@ -20,6 +20,8 @@ public struct Transcriber: Sendable {
             throw TranscribeError.unsupportedFormat
         }
 
+        try client.validateKey()
+
         onProgress(0.02, "In ascolto…")
         let chunks = try await AudioChunker.split(fileURL)
         defer { AudioChunker.discard(chunks, original: fileURL) }

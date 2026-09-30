@@ -78,7 +78,7 @@ La chiave non è nel repository. Creane una su [openrouter.ai/keys](https://open
 # per l'app avviata dal Finder
 mkdir -p ~/.config/voce && echo "sk-or-v1-..." > ~/.config/voce/openrouter.key && chmod 600 ~/.config/voce/openrouter.key
 
-# oppure, solo da terminale
+# oppure, per terminale e scripts/transcribe.sh
 export VOCE_OPENROUTER_KEY="sk-or-v1-..."
 ```
 
