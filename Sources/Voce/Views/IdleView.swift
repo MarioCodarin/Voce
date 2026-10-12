@@ -3,9 +3,6 @@ import VoceKit
 
 /// First screen: drop zone with the app mark, prompt and optional error.
 final class IdleView: NSView {
-    var onFile: ((URL) -> Void)? {
-        didSet { dropZone.onDrop = onFile }
-    }
     var onChoose: (() -> Void)? {
         didSet { dropZone.onClick = onChoose }
     }
@@ -18,6 +15,8 @@ final class IdleView: NSView {
         labelWithString: AudioFormat.headline.joined(separator: "   ")
     )
     private let errorLabel = NSTextField(labelWithString: "")
+    private let actionButton = NSButton(title: "", target: nil, action: nil)
+    private var action: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -26,15 +25,27 @@ final class IdleView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    /// Shows `message` under the formats line, or hides the line when nil.
-    func show(error message: String?) {
+    func setDropTargeted(_ targeted: Bool) {
+        dropZone.targeted = targeted
+    }
+
+    /// Shows `message` under the formats line, with an optional button; nil hides both.
+    func show(message: String?, isError: Bool = true, actionTitle: String? = nil, action: (() -> Void)? = nil) {
         errorLabel.stringValue = message ?? ""
+        errorLabel.textColor = isError ? Palette.accent : Palette.muted
         errorLabel.isHidden = message == nil
+        self.action = action
+        actionButton.title = actionTitle ?? ""
+        actionButton.isHidden = message == nil || actionTitle == nil
+        if let message { Announcer.say(message) }
+    }
+
+    @objc private func actionClicked() {
+        action?()
     }
 
     private func build() {
         dropZone.translatesAutoresizingMaskIntoConstraints = false
-        dropZone.onDragEnter = { [weak self] in self?.show(error: nil) }
         addSubview(dropZone)
 
         mark.image = Assets.icon()
@@ -53,7 +64,14 @@ final class IdleView: NSView {
         subtitleLabel.applyStyle(size: 14, weight: .regular, color: Palette.muted)
         formatsLabel.applyStyle(size: 12, weight: .medium, color: Palette.muted)
         errorLabel.applyStyle(size: 13, weight: .medium, color: Palette.accent)
+        errorLabel.lineBreakMode = .byWordWrapping
+        errorLabel.maximumNumberOfLines = 0
+        errorLabel.preferredMaxLayoutWidth = 420
         errorLabel.isHidden = true
+        actionButton.applyPillStyle(accent: true)
+        actionButton.target = self
+        actionButton.action = #selector(actionClicked)
+        actionButton.isHidden = true
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -67,13 +85,14 @@ final class IdleView: NSView {
         stack.setCustomSpacing(18, after: subtitleLabel)
         stack.addArrangedSubview(formatsLabel)
         stack.addArrangedSubview(errorLabel)
+        stack.addArrangedSubview(actionButton)
         dropZone.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            dropZone.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
-            dropZone.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
-            dropZone.topAnchor.constraint(equalTo: topAnchor, constant: 44),
-            dropZone.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -28),
+            dropZone.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
+            dropZone.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
+            dropZone.topAnchor.constraint(equalTo: topAnchor, constant: Layout.top),
+            dropZone.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Layout.bottom),
             stack.centerXAnchor.constraint(equalTo: dropZone.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: dropZone.centerYAnchor),
             stack.leadingAnchor.constraint(greaterThanOrEqualTo: dropZone.leadingAnchor, constant: 24),

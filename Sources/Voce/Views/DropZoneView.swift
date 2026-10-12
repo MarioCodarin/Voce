@@ -2,20 +2,17 @@ import AppKit
 
 /// Rounded panel that accepts a dropped file or a click.
 final class DropZoneView: NSView {
-    var onDrop: ((URL) -> Void)?
     var onClick: (() -> Void)?
-    /// Fires when a drag enters, so the screen can clear a stale error.
-    var onDragEnter: (() -> Void)?
 
-    private var targeted = false {
+    /// Highlighted while a droppable file is dragged over the window.
+    var targeted = false {
         didSet { needsDisplay = true }
     }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        registerForDraggedTypes([.fileURL])
-        addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(clicked)))
+        focusRingType = .exterior
         setAccessibilityRole(.button)
         setAccessibilityLabel("Scegli o trascina un audio da trascrivere")
     }
@@ -31,32 +28,31 @@ final class DropZoneView: NSView {
         path.stroke()
     }
 
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        targeted = true
-        onDragEnter?()
-        return .copy
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 36, 49, 76: onClick?() // return, space, keypad enter
+        default: super.keyDown(with: event)
+        }
     }
 
-    override func draggingExited(_ sender: NSDraggingInfo?) {
-        targeted = false
-    }
-
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        targeted = false
-        guard let url = fileURL(from: sender) else { return false }
-        onDrop?(url)
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
         return true
     }
 
-    @objc private func clicked() {
-        onClick?()
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 28, yRadius: 28).fill()
     }
 
-    private func fileURL(from sender: NSDraggingInfo) -> URL? {
-        let items = sender.draggingPasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]
-        )
-        return items?.first as? URL
+    override var focusRingMaskBounds: NSRect { bounds }
+
+    // A plain mouse handler (not a gesture recognizer) so the error button inside the zone
+    // keeps its own click.
+    override func mouseDown(with event: NSEvent) {}
+
+    override func mouseUp(with event: NSEvent) {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick?() }
     }
 }

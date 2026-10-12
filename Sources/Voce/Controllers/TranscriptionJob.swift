@@ -9,8 +9,10 @@ import VoceKit
 final class TranscriptionJob {
     enum Event {
         case progress(Double, String)
+        /// Waiting on the network; the bar can't show real progress.
+        case waiting(String)
         case finished(String)
-        case failed(String)
+        case failed(Error)
     }
 
     private var task: Task<Void, Never>?
@@ -22,17 +24,22 @@ final class TranscriptionJob {
         task = Task.detached { [weak self] in
             let event: Event
             do {
-                let text = try await Transcriber().transcribe(fileURL: url) { value, status in
+                let text = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
                     Task { @MainActor in
                         guard let self, self.generation == id else { return }
                         handler(.progress(value, status))
                     }
-                }
+                }, onWaiting: { status in
+                    Task { @MainActor in
+                        guard let self, self.generation == id else { return }
+                        handler(.waiting(status))
+                    }
+                })
                 event = .finished(text)
             } catch is CancellationError {
                 return
             } catch {
-                event = .failed(error.localizedDescription)
+                event = .failed(error)
             }
             await MainActor.run {
                 guard let self, self.generation == id else { return }

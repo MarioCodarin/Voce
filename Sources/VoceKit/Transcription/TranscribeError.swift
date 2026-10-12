@@ -14,12 +14,12 @@ public enum TranscribeError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .unsupportedFormat: "Formato non supportato"
+        case .unsupportedFormat: "Formato non supportato. Usa m4a, mp3, wav, flac, aac, mp4, ogg o webm."
         case .unreadableAudio: "Non riesco a leggere l’audio"
         case .exportFailed: "Non riesco a spezzare il file"
         case .emptyTranscript: "Trascrizione vuota"
         case .unauthorized: "Chiave non valida"
-        case .missingKey: "Chiave OpenRouter mancante (vedi README)"
+        case .missingKey: "Chiave OpenRouter mancante: inseriscila in Voce > Impostazioni (⌘,)"
         case .tooLarge: "File troppo grande"
         case .network: "Rete assente"
         case .server(_, let message): message

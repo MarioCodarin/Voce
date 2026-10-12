@@ -16,6 +16,9 @@ public enum AudioFormat {
     /// Extensions worth advertising in the UI.
     public static let headline = ["m4a", "mp3", "wav", "flac", "aac"]
 
+    /// Every accepted extension, sorted, for file pickers.
+    public static var extensions: [String] { mimeTypes.keys.sorted() }
+
     public static func isSupported(extension ext: String) -> Bool {
         mimeTypes[ext.lowercased()] != nil
     }

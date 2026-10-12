@@ -24,6 +24,8 @@ enum MainMenu {
         let menu = NSMenu(title: "Voce")
         menu.addItem(withTitle: "Informazioni su Voce", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Impostazioni…", action: #selector(AppDelegate.showPreferences), keyEquivalent: ",")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Nascondi Voce", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Esci da Voce", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -48,12 +50,20 @@ enum MainMenu {
         let menu = NSMenu(title: "Modifica")
         menu.addItem(withTitle: "Copia", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         menu.addItem(withTitle: "Seleziona tutto", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+        let find = menu.addItem(
+            withTitle: "Trova…",
+            action: #selector(NSResponder.performTextFinderAction(_:)),
+            keyEquivalent: "f"
+        )
+        find.tag = NSTextFinder.Action.showFindInterface.rawValue
         return menu
     }
 
     private static func windowMenu() -> NSMenu {
         let menu = NSMenu(title: "Finestra")
         menu.addItem(withTitle: "Riduci a icona", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        menu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "Chiudi", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         return menu
     }

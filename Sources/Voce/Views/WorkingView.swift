@@ -24,32 +24,62 @@ final class WorkingView: NSView {
     func begin(file: String) {
         fileLabel.stringValue = file
         statusLabel.stringValue = "In ascolto…"
+        setIndeterminate(false)
         progress.doubleValue = 0
         startedAt = Date()
         refreshDetail()
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        // `.common` keeps the clock running while menus are open or the window resizes.
+        let tick = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshDetail() }
         }
+        RunLoop.main.add(tick, forMode: .common)
+        timer = tick
     }
 
     /// Progress only moves forward, so late callbacks can't make the bar jump back.
     func update(status: String, progress value: Double) {
-        statusLabel.stringValue = status
+        setStatus(status)
+        setIndeterminate(false)
         progress.doubleValue = max(progress.doubleValue, value)
         refreshDetail()
+    }
+
+    /// Shows a busy bar for network waits, where there is no measurable progress.
+    func update(waiting status: String) {
+        setStatus(status)
+        setIndeterminate(true)
+        refreshDetail()
+    }
+
+    private func setStatus(_ status: String) {
+        guard statusLabel.stringValue != status else { return }
+        statusLabel.stringValue = status
+    }
+
+    private func setIndeterminate(_ on: Bool) {
+        guard progress.isIndeterminate != on else { return }
+        progress.isIndeterminate = on
+        if on { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     }
 
     func stop() {
         timer?.invalidate()
         timer = nil
+        progress.stopAnimation(nil)
     }
 
     private func refreshDetail() {
         let elapsed = Int(Date().timeIntervalSince(startedAt))
-        let percent = Int((progress.doubleValue * 100).rounded())
-        detailLabel.stringValue = String(format: "%d%%  ·  %d:%02d", percent, elapsed / 60, elapsed % 60)
-        progress.setAccessibilityValueDescription("\(percent) per cento")
+        let time = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+        if progress.isIndeterminate {
+            detailLabel.stringValue = time
+            progress.setAccessibilityValueDescription("In corso")
+        } else {
+            let percent = Int((progress.doubleValue * 100).rounded())
+            detailLabel.stringValue = "\(percent)%  ·  \(time)"
+            progress.setAccessibilityValueDescription("\(percent) per cento")
+        }
     }
 
     private func build() {
@@ -80,9 +110,9 @@ final class WorkingView: NSView {
         addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -40),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 72)
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
 

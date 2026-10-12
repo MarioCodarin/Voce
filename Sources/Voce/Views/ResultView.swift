@@ -23,7 +23,7 @@ final class ResultView: NSView {
 
     func show(file: String, text: String) {
         let words = text.split(whereSeparator: \.isWhitespace).count
-        fileLabel.stringValue = "\(file)  ·  \(words) parole"
+        fileLabel.stringValue = "\(file)  ·  \(words) \(words == 1 ? "parola" : "parole")"
         textView.string = text
         textView.scrollToBeginningOfDocument(nil)
         resetCopyTitle()
@@ -33,12 +33,16 @@ final class ResultView: NSView {
     func flashCopied() {
         copyReset?.cancel()
         copyButton.title = "Copiato ✓"
+        Announcer.say("Copiato negli appunti")
         copyReset = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
             self?.resetCopyTitle()
         }
     }
+
+    /// The transcript, so ⌘F finds in it without a click first.
+    var focusTarget: NSView { textView }
 
     private func resetCopyTitle() {
         copyReset?.cancel()
@@ -72,6 +76,9 @@ final class ResultView: NSView {
         header.spacing = 12
 
         textView.isEditable = false
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
+        textView.setAccessibilityLabel("Trascrizione")
         textView.isRichText = false
         textView.drawsBackground = false
         textView.textColor = Palette.ink
@@ -105,10 +112,10 @@ final class ResultView: NSView {
         addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 36),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 52),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -24)
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: Layout.top),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Layout.bottom)
         ])
     }
 

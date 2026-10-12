@@ -4,6 +4,8 @@ import Foundation
 public struct Transcriber: Sendable {
     /// Called with overall progress (0...1) and a short status line, from any thread.
     public typealias Progress = @Sendable (Double, String) -> Void
+    /// Called with a status line while waiting on the network, where progress can't be measured.
+    public typealias Waiting = @Sendable (String) -> Void
 
     private let client: OpenRouterClient
 
@@ -15,7 +17,11 @@ public struct Transcriber: Sendable {
         self.client = client
     }
 
-    public func transcribe(fileURL: URL, onProgress: @escaping Progress) async throws -> String {
+    public func transcribe(
+        fileURL: URL,
+        onProgress: @escaping Progress,
+        onWaiting: @escaping Waiting = { _ in }
+    ) async throws -> String {
         guard AudioFormat.isSupported(extension: fileURL.pathExtension) else {
             throw TranscribeError.unsupportedFormat
         }
@@ -43,7 +49,10 @@ public struct Transcriber: Sendable {
             defer { TempFiles.remove(compact) }
             onProgress(base + chunkShare * 0.3, label)
 
-            parts.append(try await client.transcribe(compact))
+            onWaiting(chunks.count == 1 ? "Invio e trascrizione…" : "Invio il pezzo \(index + 1) di \(chunks.count)…")
+            parts.append(try await client.transcribe(compact) { attempt in
+                onWaiting("Nuovo tentativo (\(attempt) di \(TranscriptionConfig.maxAttempts))…")
+            })
             onProgress(base + chunkShare, label)
         }
 

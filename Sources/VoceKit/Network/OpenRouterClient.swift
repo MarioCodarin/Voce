@@ -22,12 +22,13 @@ struct OpenRouterClient: Sendable {
     }
 
     /// Transcribes one audio file, retrying transient failures with exponential backoff.
-    func transcribe(_ fileURL: URL) async throws -> String {
+    func transcribe(_ fileURL: URL, onRetry: (@Sendable (Int) -> Void)? = nil) async throws -> String {
         var attempt = 1
         while true {
             do {
                 return try await send(fileURL)
             } catch let error as TranscribeError where error.isRetryable && attempt < TranscriptionConfig.maxAttempts {
+                onRetry?(attempt + 1)
                 try await Task.sleep(for: retryDelay * (1 << (attempt - 1)))
                 attempt += 1
             }

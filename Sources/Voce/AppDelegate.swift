@@ -1,10 +1,14 @@
 import AppKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var controller: VoceController?
     /// A file macOS asked us to open before the window existed.
     private var pendingFile: URL?
+    private var preferences: PreferencesWindowController?
+    /// Set once the user agreed to close, so quitting afterwards doesn't ask a second time.
+    private var closeConfirmed = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let image = Assets.icon() {
@@ -27,7 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = Palette.bg
         window.minSize = NSSize(width: 640, height: 480)
         window.contentViewController = controller
-        window.center()
+        window.delegate = self
+        if !window.setFrameUsingName("VoceMain") { window.center() }
+        window.setFrameAutosaveName("VoceMain")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
@@ -43,6 +49,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    /// Closing the window quits the app, so confirm before throwing work away.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        let ok = controller?.confirmDiscard(action: "Chiudi") ?? true
+        closeConfirmed = ok
+        return ok
+    }
+
+    /// Voce is a single-window app: closing it quits, even with Preferences still open.
+    func windowWillClose(_ notification: Notification) {
+        if notification.object as? NSWindow === window { NSApp.terminate(nil) }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !closeConfirmed, let controller else { return .terminateNow }
+        return controller.confirmDiscard(action: "Esci") ? .terminateNow : .terminateCancel
+    }
+
+    @objc func showPreferences(_ sender: Any?) {
+        if preferences == nil { preferences = PreferencesWindowController() }
+        preferences?.showWindow(nil)
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
