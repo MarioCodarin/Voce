@@ -36,6 +36,7 @@ struct OpenRouterClientTests {
         #expect(parseError(status: 413) == .tooLarge)
         #expect(parseError(status: 500, body: #"{"error":{"message":"boom"}}"#) == .server(status: 500, message: "boom"))
         #expect(parseError(status: 429) == .server(status: 429, message: "Errore 429"))
+        #expect(parseError(status: 408, body: #"{"error":{"message":"Provider returned 408","code":408}}"#) == .timeout)
     }
 
     @Test func emptyKeyFailsFast() {
@@ -47,6 +48,7 @@ struct OpenRouterClientTests {
         #expect(TranscribeError.network.isRetryable)
         #expect(TranscribeError.server(status: 429, message: "").isRetryable)
         #expect(TranscribeError.server(status: 503, message: "").isRetryable)
+        #expect(TranscribeError.timeout.isRetryable)
         #expect(!TranscribeError.server(status: 400, message: "").isRetryable)
         #expect(!TranscribeError.unauthorized.isRetryable)
     }

@@ -26,7 +26,7 @@ Tutto il resto è `internal` e raggiungibile dai test con `@testable import`.
 ```
 Transcriber.transcribe
  ├─ AudioFormat.isSupported            estensione valida?
- ├─ AudioChunker.split                 ≤ 20 min → il file stesso; altrimenti fette M4A (overlap 2 s)
+ ├─ AudioChunker.split                 ≤ 5 min → il file stesso; altrimenti fette M4A (overlap 2 s)
  └─ per ogni fetta
      ├─ AudioConverter.compactForUpload   mono 16 kHz: MP3 64k (ffmpeg) o WAV (afconvert)
      ├─ OpenRouterClient.transcribe       multipart su disco, retry con backoff su rete/429/5xx

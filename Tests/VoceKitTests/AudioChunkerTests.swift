@@ -14,12 +14,16 @@ struct AudioChunkerTests {
     }
 
     @Test func longAudioSplitsWithOverlap() {
-        let ranges = AudioChunker.ranges(duration: 45 * 60)
+        let ranges = AudioChunker.ranges(duration: 12 * 60)
         #expect(ranges.count == 3)
         #expect(ranges[0].start == 0)
         #expect(ranges[0].end == AudioChunker.maxChunkSeconds)
         #expect(ranges[1].start == AudioChunker.maxChunkSeconds - AudioChunker.overlapSeconds)
-        #expect(ranges[2].end == 45 * 60)
+        #expect(ranges[2].end == 12 * 60)
+    }
+
+    @Test func chunksStayShortEnoughForTheProvider() {
+        #expect(AudioChunker.maxChunkSeconds <= 5 * 60)
     }
 
     @Test func emptyDurationHasNoRanges() {

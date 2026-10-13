@@ -7,9 +7,9 @@ final class ResultView: NSView {
     var onNew: (() -> Void)?
 
     private let fileLabel = NSTextField(labelWithString: "")
-    private let copyButton = NSButton(title: "Copia", target: nil, action: nil)
-    private let saveButton = NSButton(title: "Salva .txt", target: nil, action: nil)
-    private let newButton = NSButton(title: "Nuovo", target: nil, action: nil)
+    private let copyButton = PillButton(title: "Copia", target: nil, action: nil)
+    private let saveButton = PillButton(title: "Salva .txt", target: nil, action: nil)
+    private let newButton = PillButton(title: "Nuovo", target: nil, action: nil)
     private let scroll = NSScrollView()
     private let textView = NSTextView()
     private var copyReset: Task<Void, Never>?
@@ -54,9 +54,9 @@ final class ResultView: NSView {
         fileLabel.alignment = .left
         fileLabel.maximumNumberOfLines = 1
 
-        copyButton.applyPillStyle(accent: false)
-        saveButton.applyPillStyle(accent: false)
-        newButton.applyPillStyle(accent: true)
+        copyButton.style(accent: false)
+        saveButton.style(accent: false)
+        newButton.style(accent: true)
         for (button, action) in [
             (copyButton, #selector(copyClicked)),
             (saveButton, #selector(saveClicked)),

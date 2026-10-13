@@ -8,6 +8,8 @@ final class IdleView: NSView {
     }
 
     private let dropZone = DropZoneView()
+    /// The drop zone, so Return and Space work without a click first.
+    var focusTarget: NSView { dropZone }
     private let mark = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "Trascina un audio")
     private let subtitleLabel = NSTextField(labelWithString: "oppure clicca per scegliere  ·  italiano")
@@ -15,7 +17,7 @@ final class IdleView: NSView {
         labelWithString: AudioFormat.headline.joined(separator: "   ")
     )
     private let errorLabel = NSTextField(labelWithString: "")
-    private let actionButton = NSButton(title: "", target: nil, action: nil)
+    private let actionButton = PillButton(title: "", target: nil, action: nil)
     private var action: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -68,7 +70,7 @@ final class IdleView: NSView {
         errorLabel.maximumNumberOfLines = 0
         errorLabel.preferredMaxLayoutWidth = 420
         errorLabel.isHidden = true
-        actionButton.applyPillStyle(accent: true)
+        actionButton.style(accent: true)
         actionButton.target = self
         actionButton.action = #selector(actionClicked)
         actionButton.isHidden = true

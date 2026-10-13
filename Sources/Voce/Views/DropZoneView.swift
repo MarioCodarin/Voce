@@ -30,6 +30,8 @@ final class DropZoneView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 36, 49, 76: onClick?() // return, space, keypad enter

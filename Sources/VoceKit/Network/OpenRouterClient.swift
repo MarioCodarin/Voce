@@ -73,6 +73,7 @@ struct OpenRouterClient: Sendable {
         switch status {
         case 0: throw TranscribeError.network
         case 401, 403: throw TranscribeError.unauthorized
+        case 408, 504: throw TranscribeError.timeout
         case 413: throw TranscribeError.tooLarge
         case 400...:
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error.message

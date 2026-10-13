@@ -10,6 +10,7 @@ public enum TranscribeError: LocalizedError, Equatable {
     case missingKey
     case tooLarge
     case network
+    case timeout
     case server(status: Int, message: String)
 
     public var errorDescription: String? {
@@ -22,6 +23,7 @@ public enum TranscribeError: LocalizedError, Equatable {
         case .missingKey: "Chiave OpenRouter mancante: inseriscila in Voce > Impostazioni (⌘,)"
         case .tooLarge: "File troppo grande"
         case .network: "Rete assente"
+        case .timeout: "Il servizio non ha risposto in tempo"
         case .server(_, let message): message
         }
     }
@@ -29,7 +31,7 @@ public enum TranscribeError: LocalizedError, Equatable {
     /// Worth trying again: connectivity loss, rate limiting, or a server-side fault.
     var isRetryable: Bool {
         switch self {
-        case .network: true
+        case .network, .timeout: true
         case .server(let status, _): status == 429 || status >= 500
         default: false
         }

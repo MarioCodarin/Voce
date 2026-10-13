@@ -223,8 +223,10 @@ final class VoceController: NSViewController {
         case .idle:
             idleView.show(message: nil)
             idleView.isHidden = false
+            view.window?.makeFirstResponder(idleView.focusTarget)
         case .working:
             workingView.isHidden = false
+            view.window?.makeFirstResponder(workingView)
         case .done(let file, let text):
             transcriptKept = false
             resultView.show(file: file, text: text)

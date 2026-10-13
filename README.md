@@ -7,7 +7,7 @@ Usa `microsoft/mai-transcribe-2` su OpenRouter. Trascina un file, aspetta, copia
 ## Funzioni
 
 - Trascina un audio nella finestra, oppure clicca / ⌘O per sceglierlo (m4a, mp3, wav, flac, aac, mp4, ogg, webm).
-- File lunghi oltre 20 minuti vengono spezzati e ricuciti; le parole ripetute nei punti di taglio vengono eliminate.
+- File lunghi oltre 5 minuti vengono spezzati e ricuciti; le parole ripetute nei punti di taglio vengono eliminate.
 - Progresso con percentuale e tempo trascorso; Annulla con Esc.
 - Copia (⇧⌘C) e salva `.txt` (⌘S); dopo il salvataggio il file appare nel Finder.
 - I fallimenti temporanei (rete, 429, 5xx) vengono ritentati fino a 3 volte.

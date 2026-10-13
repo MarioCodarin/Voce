@@ -3,8 +3,8 @@ import Foundation
 
 /// Splits long recordings into slices the API accepts.
 enum AudioChunker {
-    /// OpenRouter rejects uploads much longer than this.
-    static let maxChunkSeconds: Double = 20 * 60
+    /// Longer uploads make the provider time out (HTTP 408), so keep slices short.
+    static let maxChunkSeconds: Double = 5 * 60
     /// Adjacent slices share this much audio so no word is lost at a cut.
     static let overlapSeconds: Double = 2
 

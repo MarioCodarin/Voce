@@ -8,7 +8,7 @@ final class WorkingView: NSView {
     private let statusLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
-    private let cancelButton = NSButton(title: "Annulla", target: nil, action: nil)
+    private let cancelButton = PillButton(title: "Annulla", target: nil, action: nil)
 
     private var timer: Timer?
     private var startedAt = Date()
@@ -97,13 +97,13 @@ final class WorkingView: NSView {
         progress.translatesAutoresizingMaskIntoConstraints = false
         progress.heightAnchor.constraint(equalToConstant: 8).isActive = true
 
-        cancelButton.applyPillStyle(accent: false)
+        cancelButton.style(accent: false)
         cancelButton.target = self
         cancelButton.action = #selector(cancelClicked)
 
         let stack = NSStackView(views: [fileLabel, statusLabel, progress, detailLabel, cancelButton])
         stack.orientation = .vertical
-        stack.alignment = .leading
+        stack.alignment = .centerX
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
         progress.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
@@ -114,6 +114,12 @@ final class WorkingView: NSView {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
     }
 
     @objc private func cancelClicked() {
