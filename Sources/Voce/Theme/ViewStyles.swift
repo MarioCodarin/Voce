@@ -102,6 +102,7 @@ final class ProgressBar: NSView {
         layer?.addSublayer(track)
         track.masksToBounds = true
         track.addSublayer(fill)
+        setAccessibilityElement(true)
         setAccessibilityRole(.progressIndicator)
         setAccessibilityLabel("Avanzamento della trascrizione")
         refreshColors()
@@ -112,6 +113,7 @@ final class ProgressBar: NSView {
     func setValue(_ newValue: Double, animated: Bool = true) {
         value = min(max(newValue, 0), 1)
         layoutFill(animated: animated)
+        NSAccessibility.post(element: self, notification: .valueChanged)
     }
 
     func setIndeterminate(_ on: Bool) {
@@ -124,11 +126,18 @@ final class ProgressBar: NSView {
 
     override func layout() {
         super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         track.frame = bounds
         track.cornerRadius = bounds.height / 2
         fill.cornerRadius = bounds.height / 2
+        CATransaction.commit()
         layoutFill(animated: false)
-        if isIndeterminate, !Motion.reduced, fill.animation(forKey: "slide") == nil { startSliding() }
+        // The slide distance depends on the width, so restart it when the width changes.
+        if isIndeterminate, !Motion.reduced {
+            fill.removeAnimation(forKey: "slide")
+            startSliding()
+        }
     }
 
     private func layoutFill(animated: Bool) {
@@ -168,7 +177,10 @@ final class ProgressBar: NSView {
         }
     }
 
-    override func accessibilityValue() -> Any? {
+    override func accessibilityValue() -> Any? { NSNumber(value: isIndeterminate ? 0 : value) }
+    override func accessibilityMinValue() -> Any? { NSNumber(value: 0) }
+    override func accessibilityMaxValue() -> Any? { NSNumber(value: 1) }
+    override func accessibilityValueDescription() -> String? {
         isIndeterminate ? "In corso" : "\(Int((value * 100).rounded())) per cento"
     }
 }

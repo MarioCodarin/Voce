@@ -219,6 +219,8 @@ final class VoceController: NSViewController {
         case .done: incoming = resultView
         }
         for screen in screens where screen !== incoming { screen.isHidden = true }
+        // Unhide before assigning focus; only fade when the screen actually changes.
+        if incoming.isHidden { Motion.fadeIn(incoming) }
         // The clock is started by `open`; only stop it when leaving the working screen.
         if case .working = newState {} else { workingView.stop() }
 
@@ -233,8 +235,6 @@ final class VoceController: NSViewController {
             resultView.show(file: file, text: text)
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
-        // Only fade when the screen actually changes; status updates re-render nothing.
-        if incoming.isHidden { Motion.fadeIn(incoming) }
     }
 }
 

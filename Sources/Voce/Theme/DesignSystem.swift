@@ -5,8 +5,7 @@ import AppKit
 
 // MARK: - Colour
 
-/// Semantic colours. Text and surfaces come from the system so both appearances,
-/// increased contrast and the user's accent-independent defaults just work;
+/// Semantic colours. Text and surfaces come from the system so both appearances work;
 /// only the Voce accent is custom.
 enum Palette {
     static let bg = NSColor.windowBackgroundColor
@@ -19,7 +18,7 @@ enum Palette {
     /// Resting fill of secondary buttons.
     static let control = dynamic(light: NSColor(white: 0, alpha: 0.06), dark: NSColor(white: 1, alpha: 0.09))
 
-    /// Brand terracotta for fills. White text on it passes 4.5:1 in both appearances.
+    /// Brand terracotta for fills. White text on it passes 4.5:1 at rest; hover darkens it so contrast only improves. No Increased Contrast variant yet.
     static let accent = NSColor(srgbRed: 0.753, green: 0.325, blue: 0.227, alpha: 1)
     /// The same hue tuned for text and outlines drawn straight on the window background.
     static let accentText = dynamic(

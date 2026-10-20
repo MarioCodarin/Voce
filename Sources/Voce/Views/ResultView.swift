@@ -78,6 +78,7 @@ final class ResultView: NSView {
         titles.orientation = .vertical
         titles.alignment = .leading
         titles.spacing = 2
+        titles.setContentCompressionResistancePriority(.init(250), for: .horizontal)
 
         copyButton.style(accent: true)
         saveButton.style(accent: false)
