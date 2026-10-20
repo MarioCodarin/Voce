@@ -61,7 +61,7 @@ final class ResultView: NSView {
     /// Keeps lines at a comfortable reading width however wide the window gets.
     override func layout() {
         super.layout()
-        let inset = max(Space.s, (scroll.contentSize.width - Layout.reading) / 2)
+        let inset = max(0, (scroll.contentSize.width - Layout.reading) / 2)
         if textView.textContainerInset.width != inset {
             textView.textContainerInset = NSSize(width: inset, height: Space.m)
         }
@@ -70,6 +70,7 @@ final class ResultView: NSView {
     private func build() {
         fileLabel.applyStyle(font: Typo.title, color: Palette.ink, lines: 1)
         fileLabel.alignment = .left
+        fileLabel.lineBreakMode = .byTruncatingMiddle
         fileLabel.setContentCompressionResistancePriority(.init(250), for: .horizontal)
         countLabel.applyStyle(font: Typo.caption, color: Palette.muted, lines: 1)
         countLabel.alignment = .left
@@ -111,7 +112,7 @@ final class ResultView: NSView {
         textView.setAccessibilityLabel("Trascrizione")
         textView.isRichText = false
         textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: Space.s, height: Space.m)
+        textView.textContainerInset = NSSize(width: 0, height: Space.m)
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false

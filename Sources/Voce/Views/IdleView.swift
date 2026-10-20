@@ -35,6 +35,8 @@ final class IdleView: NSView {
     func show(message: String?, isError: Bool = true, actionTitle: String? = nil, action: (() -> Void)? = nil) {
         errorLabel.attributedStringValue = message.map { Self.format($0, isError: isError) } ?? NSAttributedString()
         errorLabel.isHidden = message == nil
+        // The mark makes room for the message, so the error never pushes content off a small window.
+        mark.isHidden = message != nil
         self.action = action
         actionButton.title = actionTitle ?? ""
         actionButton.isHidden = message == nil || actionTitle == nil
@@ -58,11 +60,10 @@ final class IdleView: NSView {
             text.append(NSAttributedString(string: "  "))
         }
         text.append(NSAttributedString(string: message))
-        text.addAttributes([
-            .font: Typo.labelStrong,
-            .foregroundColor: color,
-            .paragraphStyle: paragraph
-        ], range: NSRange(location: isError ? 1 : 0, length: text.length - (isError ? 1 : 0)))
+        text.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: text.length))
+        let start = isError ? 1 : 0
+        text.addAttributes([.font: Typo.labelStrong, .foregroundColor: color],
+                           range: NSRange(location: start, length: text.length - start))
         return text
     }
 
@@ -72,6 +73,7 @@ final class IdleView: NSView {
 
     private func build() {
         dropZone.translatesAutoresizingMaskIntoConstraints = false
+        dropZone.setAccessibilityHelp("Premi Invio o Spazio per aprire un file. Formati: " + AudioFormat.headline.joined(separator: ", "))
         addSubview(dropZone)
 
         mark.image = Assets.icon()

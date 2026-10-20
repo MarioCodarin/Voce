@@ -12,6 +12,8 @@ final class WorkingView: NSView {
 
     private var timer: Timer?
     private var startedAt = Date()
+    /// Last quarter announced to VoiceOver, so progress is spoken at 25/50/75% and not on every tick.
+    private var announcedQuarter = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -27,6 +29,7 @@ final class WorkingView: NSView {
         progress.setIndeterminate(false)
         progress.setValue(0, animated: false)
         startedAt = Date()
+        announcedQuarter = 0
         refreshDetail()
         timer?.invalidate()
         // `.common` keeps the clock running while menus are open or the window resizes.
@@ -43,6 +46,11 @@ final class WorkingView: NSView {
         progress.setIndeterminate(false)
         progress.setValue(max(progress.value, value))
         refreshDetail()
+        let quarter = Int(progress.value * 4)
+        if quarter > announcedQuarter, quarter < 4 {
+            announcedQuarter = quarter
+            Announcer.say("\(quarter * 25) per cento")
+        }
     }
 
     /// Shows a busy bar for network waits, where there is no measurable progress.
@@ -76,6 +84,7 @@ final class WorkingView: NSView {
 
     private func build() {
         fileLabel.applyStyle(font: Typo.title, color: Palette.ink)
+        fileLabel.lineBreakMode = .byTruncatingMiddle
         statusLabel.applyStyle(font: Typo.label, color: Palette.muted)
         detailLabel.applyStyle(font: Typo.captionDigits, color: Palette.muted)
         detailLabel.setAccessibilityElement(false)
