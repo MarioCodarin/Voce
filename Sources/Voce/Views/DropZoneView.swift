@@ -36,7 +36,7 @@ final class DropZoneView: NSView {
             stroke = Palette.accentText
             path.lineWidth = 2
         } else {
-            stroke = Palette.muted.withAlphaComponent(hovering ? 0.9 : 0.6)
+            stroke = Palette.muted.withAlphaComponent(hovering ? 0.8 : 0.5)
             path.lineWidth = 1.5
             path.setLineDash([6, 5], count: 2, phase: 0)
         }
@@ -47,7 +47,7 @@ final class DropZoneView: NSView {
     override var acceptsFirstResponder: Bool { true }
 
     override func becomeFirstResponder() -> Bool {
-        keyboardFocus = NSApp.currentEvent?.type == .keyDown
+        keyboardFocus = NSApp.currentEvent?.type == .keyDown || NSApp.isFullKeyboardAccessEnabled
         return super.becomeFirstResponder()
     }
 
