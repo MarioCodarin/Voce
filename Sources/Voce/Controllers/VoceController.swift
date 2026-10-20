@@ -5,7 +5,7 @@ import VoceKit
 /// Owns the window's content: switches between the idle, working and result screens
 /// and wires their buttons to the transcription job.
 final class VoceController: NSViewController {
-    private enum State {
+    fileprivate enum State {
         case idle
         case working
         case done(file: String, text: String)
@@ -17,9 +17,9 @@ final class VoceController: NSViewController {
     /// True once the current transcript was copied or saved, so replacing it loses nothing.
     private var transcriptKept = false
 
-    private let idleView = IdleView()
-    private let workingView = WorkingView()
-    private let resultView = ResultView()
+    fileprivate let idleView = IdleView()
+    fileprivate let workingView = WorkingView()
+    fileprivate let resultView = ResultView()
 
     override func loadView() {
         let host = DropHostView(frame: NSRect(x: 0, y: 0, width: 720, height: 560))
@@ -211,7 +211,7 @@ final class VoceController: NSViewController {
 
     // MARK: - Rendering
 
-    private func render(_ newState: State) {
+    fileprivate func render(_ newState: State) {
         state = newState
         idleView.isHidden = true
         workingView.isHidden = true
@@ -235,6 +235,31 @@ final class VoceController: NSViewController {
         }
     }
 }
+
+#if DEBUG
+extension VoceController {
+    /// Screenshot aid (debug builds only): `VOCE_PREVIEW=idle|error|working|waiting|result`.
+    func debugPreview(_ name: String) {
+        switch name {
+        case "error":
+            idleView.show(message: "registrazione.m4a: Non riesco a raggiungere il servizio. Controlla la connessione e riprova.", actionTitle: "Riprova") {}
+        case "working", "waiting":
+            workingView.begin(file: "Intervista con Giulia Montecchi.m4a")
+            render(.working)
+            if name == "working" {
+                workingView.update(status: "Trascrivo la parte 2 di 5", progress: 0.42)
+            } else {
+                workingView.update(waiting: "In attesa di OpenRouter…")
+            }
+        case "result":
+            let paragraph = "Buongiorno a tutti e grazie di essere qui. Oggi parleremo di come costruire una piccola app per il Mac che trascrive l'audio in italiano, partendo da un file registrato con il telefono. La parte più difficile non è il riconoscimento, ma tutto quello che c'è intorno: file lunghi, rete instabile, errori comprensibili. "
+            render(.done(file: "Intervista con Giulia Montecchi.m4a", text: String(repeating: paragraph, count: 6)))
+        default:
+            break
+        }
+    }
+}
+#endif
 
 extension VoceController: NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {

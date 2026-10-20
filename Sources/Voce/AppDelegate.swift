@@ -39,6 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.window = window
         self.controller = controller
 
+        #if DEBUG
+        if let preview = ProcessInfo.processInfo.environment["VOCE_PREVIEW"] { controller.debugPreview(preview) }
+        if let directory = ProcessInfo.processInfo.environment["VOCE_SNAPSHOT"] {
+            Snapshots.run(into: directory, window: window, controller: controller)
+            exit(0)
+        }
+        #endif
+
         // Prefer a file from Finder/`open`; fall back to a path given on the command line.
         let launchFile = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") }
         if let file = pendingFile ?? launchFile.map({ URL(fileURLWithPath: $0) }) {
