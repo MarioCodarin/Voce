@@ -26,6 +26,10 @@ Usa `microsoft/mai-transcribe-2` su OpenRouter. Trascina un file, aspetta, copia
 open dist/Voce.app
 ```
 
+## Icona
+
+La sorgente è `Assets/AppIcon.svg`. Dopo averla modificata, `./scripts/make-icon.sh` rigenera `AppIcon.png` e `AppIcon.icns` (serve `rsvg-convert`: `brew install librsvg`).
+
 ## Da terminale
 
 ```bash
@@ -61,7 +65,7 @@ Sources/
     Transcription/  orchestrazione, ricucitura del testo, errori
     CLI/            modalità --transcribe
   Voce/             app AppKit
-    Theme/          colori e stili
+    Theme/          DesignSystem (colori, spazi, tipi, durate) e stili dei controlli
     Views/          schermate: idle, in corso, risultato
     Controllers/    VoceController (stato) e TranscriptionJob (lavoro)
 Tests/VoceKitTests/

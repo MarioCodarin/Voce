@@ -4,3 +4,5 @@ Voce.app
 .DS_Store
 *.xcuserstate
 Assets/AppIcon.iconset/
+.claude-flow/
+screenshots/

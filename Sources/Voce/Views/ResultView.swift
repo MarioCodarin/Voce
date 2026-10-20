@@ -7,9 +7,11 @@ final class ResultView: NSView {
     var onNew: (() -> Void)?
 
     private let fileLabel = NSTextField(labelWithString: "")
-    private let copyButton = PillButton(title: "Copia", target: nil, action: nil)
-    private let saveButton = PillButton(title: "Salva .txt", target: nil, action: nil)
-    private let newButton = PillButton(title: "Nuovo", target: nil, action: nil)
+    private let countLabel = NSTextField(labelWithString: "")
+    private let copyButton = ActionButton(title: "Copia", target: nil, action: nil)
+    private let saveButton = ActionButton(title: "Salva .txt", target: nil, action: nil)
+    private let newButton = ActionButton(title: "Nuovo", target: nil, action: nil)
+    private let divider = NSBox()
     private let scroll = NSScrollView()
     private let textView = NSTextView()
     private var copyReset: Task<Void, Never>?
@@ -23,11 +25,18 @@ final class ResultView: NSView {
 
     func show(file: String, text: String) {
         let words = text.split(whereSeparator: \.isWhitespace).count
-        fileLabel.stringValue = "\(file)  ·  \(words) \(words == 1 ? "parola" : "parole")"
-        textView.string = text
+        fileLabel.stringValue = file
+        countLabel.stringValue = "\(words) \(words == 1 ? "parola" : "parole")"
+        textView.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: Self.textAttributes))
         textView.scrollToBeginningOfDocument(nil)
         resetCopyTitle()
     }
+
+    private static let textAttributes: [NSAttributedString.Key: Any] = {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 5
+        return [.font: Typo.body, .foregroundColor: Palette.ink, .paragraphStyle: paragraph]
+    }()
 
     /// Briefly swaps the Copy button's title to confirm the copy happened.
     func flashCopied() {
@@ -49,14 +58,33 @@ final class ResultView: NSView {
         copyButton.title = "Copia"
     }
 
-    private func build() {
-        fileLabel.applyStyle(size: 14, weight: .medium, color: Palette.muted)
-        fileLabel.alignment = .left
-        fileLabel.maximumNumberOfLines = 1
+    /// Keeps lines at a comfortable reading width however wide the window gets.
+    override func layout() {
+        super.layout()
+        let inset = max(0, (scroll.contentSize.width - Layout.reading) / 2)
+        if textView.textContainerInset.width != inset {
+            textView.textContainerInset = NSSize(width: inset, height: Space.m)
+        }
+    }
 
-        copyButton.style(accent: false)
+    private func build() {
+        fileLabel.applyStyle(font: Typo.title, color: Palette.ink, lines: 1)
+        fileLabel.alignment = .left
+        fileLabel.lineBreakMode = .byTruncatingMiddle
+        fileLabel.setContentCompressionResistancePriority(.init(250), for: .horizontal)
+        countLabel.applyStyle(font: Typo.caption, color: Palette.muted, lines: 1)
+        countLabel.alignment = .left
+        let titles = NSStackView(views: [fileLabel, countLabel])
+        titles.orientation = .vertical
+        titles.alignment = .leading
+        titles.spacing = 2
+
+        copyButton.style(accent: true)
         saveButton.style(accent: false)
-        newButton.style(accent: true)
+        newButton.style(accent: false)
+        copyButton.toolTip = "Copia la trascrizione (⇧⌘C)"
+        saveButton.toolTip = "Salva come file di testo (⌘S)"
+        newButton.toolTip = "Trascrivi un altro audio (⌘N)"
         for (button, action) in [
             (copyButton, #selector(copyClicked)),
             (saveButton, #selector(saveClicked)),
@@ -66,14 +94,17 @@ final class ResultView: NSView {
             button.action = action
         }
 
-        let actions = NSStackView(views: [copyButton, saveButton, newButton])
+        let actions = NSStackView(views: [newButton, saveButton, copyButton])
         actions.orientation = .horizontal
-        actions.spacing = 8
+        actions.spacing = Space.s
+        actions.setHuggingPriority(.required, for: .horizontal)
 
-        let header = NSStackView(views: [fileLabel, NSView(), actions])
+        let header = NSStackView(views: [titles, NSView(), actions])
         header.orientation = .horizontal
         header.alignment = .centerY
-        header.spacing = 12
+        header.spacing = Space.l
+
+        divider.boxType = .separator
 
         textView.isEditable = false
         textView.usesFindBar = true
@@ -81,9 +112,7 @@ final class ResultView: NSView {
         textView.setAccessibilityLabel("Trascrizione")
         textView.isRichText = false
         textView.drawsBackground = false
-        textView.textColor = Palette.ink
-        textView.font = NSFont.systemFont(ofSize: 17, weight: .regular)
-        textView.textContainerInset = NSSize(width: 8, height: 10)
+        textView.textContainerInset = NSSize(width: 0, height: Space.m)
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
@@ -95,27 +124,29 @@ final class ResultView: NSView {
 
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
+        scroll.scrollerStyle = .overlay
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.setContentHuggingPriority(.init(1), for: .vertical)
         scroll.setContentCompressionResistancePriority(.init(1), for: .vertical)
 
-        let stack = NSStackView(views: [header, scroll])
+        let stack = NSStackView(views: [header, divider, scroll])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 14
+        stack.spacing = Space.m
         stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
-        header.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        scroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        for row in [header, divider, scroll] {
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         addSubview(stack)
 
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: Layout.top),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Layout.bottom)
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: Layout.top - Space.s),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Space.l)
         ])
     }
 

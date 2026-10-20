@@ -24,20 +24,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
         window.title = "Voce"
-        window.appearance = NSAppearance(named: .darkAqua)
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.collectionBehavior = [.fullScreenPrimary]
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = Palette.bg
-        window.minSize = NSSize(width: 640, height: 480)
+        window.minSize = NSSize(width: 560, height: 420)
         window.contentViewController = controller
         window.delegate = self
         if !window.setFrameUsingName("VoceMain") { window.center() }
         window.setFrameAutosaveName("VoceMain")
+        // Fade the window in rather than popping it; the background is already the final colour.
+        window.alphaValue = Motion.reduced ? 1 : 0
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        if window.alphaValue < 1 {
+            Motion.animate(Motion.quick) { window.animator().alphaValue = 1 }
+        }
         self.window = window
         self.controller = controller
+
+        #if DEBUG
+        if let preview = ProcessInfo.processInfo.environment["VOCE_PREVIEW"] { controller.debugPreview(preview) }
+        if let directory = ProcessInfo.processInfo.environment["VOCE_SNAPSHOT"] {
+            Snapshots.run(into: directory, window: window, controller: controller)
+            exit(0)
+        }
+        #endif
 
         // Prefer a file from Finder/`open`; fall back to a path given on the command line.
         let launchFile = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("-") }
