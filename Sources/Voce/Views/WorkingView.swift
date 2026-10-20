@@ -7,8 +7,8 @@ final class WorkingView: NSView {
     private let fileLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
-    private let progress = NSProgressIndicator()
-    private let cancelButton = PillButton(title: "Annulla", target: nil, action: nil)
+    private let progress = ProgressBar()
+    private let cancelButton = ActionButton(title: "Annulla", target: nil, action: nil)
 
     private var timer: Timer?
     private var startedAt = Date()
@@ -24,8 +24,8 @@ final class WorkingView: NSView {
     func begin(file: String) {
         fileLabel.stringValue = file
         statusLabel.stringValue = "In ascolto…"
-        setIndeterminate(false)
-        progress.doubleValue = 0
+        progress.setIndeterminate(false)
+        progress.setValue(0, animated: false)
         startedAt = Date()
         refreshDetail()
         timer?.invalidate()
@@ -40,15 +40,15 @@ final class WorkingView: NSView {
     /// Progress only moves forward, so late callbacks can't make the bar jump back.
     func update(status: String, progress value: Double) {
         setStatus(status)
-        setIndeterminate(false)
-        progress.doubleValue = max(progress.doubleValue, value)
+        progress.setIndeterminate(false)
+        progress.setValue(max(progress.value, value))
         refreshDetail()
     }
 
     /// Shows a busy bar for network waits, where there is no measurable progress.
     func update(waiting status: String) {
         setStatus(status)
-        setIndeterminate(true)
+        progress.setIndeterminate(true)
         refreshDetail()
     }
 
@@ -57,16 +57,10 @@ final class WorkingView: NSView {
         statusLabel.stringValue = status
     }
 
-    private func setIndeterminate(_ on: Bool) {
-        guard progress.isIndeterminate != on else { return }
-        progress.isIndeterminate = on
-        if on { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
-    }
-
     func stop() {
         timer?.invalidate()
         timer = nil
-        progress.stopAnimation(nil)
+        progress.setIndeterminate(false)
     }
 
     private func refreshDetail() {
@@ -74,45 +68,45 @@ final class WorkingView: NSView {
         let time = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
         if progress.isIndeterminate {
             detailLabel.stringValue = time
-            progress.setAccessibilityValueDescription("In corso")
         } else {
-            let percent = Int((progress.doubleValue * 100).rounded())
+            let percent = Int((progress.value * 100).rounded())
             detailLabel.stringValue = "\(percent)%  ·  \(time)"
-            progress.setAccessibilityValueDescription("\(percent) per cento")
         }
     }
 
     private func build() {
-        fileLabel.applyStyle(size: 20, weight: .semibold, color: Palette.ink)
-        statusLabel.applyStyle(size: 14, weight: .regular, color: Palette.muted)
-        detailLabel.applyStyle(size: 12, weight: .medium, color: Palette.muted)
-        detailLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        fileLabel.applyStyle(font: Typo.title, color: Palette.ink)
+        statusLabel.applyStyle(font: Typo.label, color: Palette.muted)
+        detailLabel.applyStyle(font: Typo.captionDigits, color: Palette.muted)
+        detailLabel.setAccessibilityElement(false)
 
-        progress.isIndeterminate = false
-        progress.minValue = 0
-        progress.maxValue = 1
-        progress.doubleValue = 0
-        progress.controlSize = .small
-        progress.style = .bar
         progress.translatesAutoresizingMaskIntoConstraints = false
-        progress.heightAnchor.constraint(equalToConstant: 8).isActive = true
 
         cancelButton.style(accent: false)
+        cancelButton.toolTip = "Annulla (esc)"
         cancelButton.target = self
         cancelButton.action = #selector(cancelClicked)
 
         let stack = NSStackView(views: [fileLabel, statusLabel, progress, detailLabel, cancelButton])
         stack.orientation = .vertical
         stack.alignment = .centerX
-        stack.spacing = 14
+        stack.spacing = Space.s
+        stack.setCustomSpacing(Space.xs, after: fileLabel)
+        stack.setCustomSpacing(Space.l, after: statusLabel)
+        stack.setCustomSpacing(Space.s, after: progress)
+        stack.setCustomSpacing(Space.xl, after: detailLabel)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        progress.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         addSubview(stack)
 
+        let wide = progress.widthAnchor.constraint(equalToConstant: Layout.column)
+        wide.priority = .defaultHigh
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor)
+            wide,
+            progress.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor, constant: -2 * Layout.side),
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -Space.l),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: Layout.side),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -Layout.side)
         ])
     }
 

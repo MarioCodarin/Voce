@@ -6,7 +6,7 @@ import AppKit
 @MainActor
 enum Snapshots {
     static let states = ["idle", "error", "working", "waiting", "result"]
-    static let sizes: [(String, NSSize)] = [("normal", NSSize(width: 720, height: 560)), ("small", NSSize(width: 640, height: 480))]
+    static let sizes: [(String, NSSize)] = [("normal", NSSize(width: 720, height: 560)), ("small", NSSize(width: 560, height: 420))]
     static let appearances: [(String, NSAppearance.Name)] = [("dark", .darkAqua), ("light", .aqua)]
 
     static func run(into directory: String, window: NSWindow, controller: VoceController) {

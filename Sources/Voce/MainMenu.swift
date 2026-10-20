@@ -10,6 +10,7 @@ enum MainMenu {
         main.addItem(submenu(appMenu()))
         main.addItem(submenu(fileMenu()))
         main.addItem(submenu(editMenu()))
+        main.addItem(submenu(viewMenu()))
         main.addItem(submenu(windowMenu()))
         return main
     }
@@ -27,6 +28,9 @@ enum MainMenu {
         menu.addItem(withTitle: "Impostazioni…", action: #selector(AppDelegate.showPreferences), keyEquivalent: ",")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Nascondi Voce", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let others = menu.addItem(withTitle: "Nascondi altre", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        others.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(withTitle: "Mostra tutte", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Esci da Voce", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
@@ -57,6 +61,13 @@ enum MainMenu {
             keyEquivalent: "f"
         )
         find.tag = NSTextFinder.Action.showFindInterface.rawValue
+        return menu
+    }
+
+    private static func viewMenu() -> NSMenu {
+        let menu = NSMenu(title: "Vista")
+        let full = menu.addItem(withTitle: "Schermo intero", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        full.keyEquivalentModifierMask = [.command, .control]
         return menu
     }
 

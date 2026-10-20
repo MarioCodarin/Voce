@@ -23,8 +23,6 @@ final class VoceController: NSViewController {
 
     override func loadView() {
         let host = DropHostView(frame: NSRect(x: 0, y: 0, width: 720, height: 560))
-        host.wantsLayer = true
-        host.layer?.backgroundColor = Palette.bg.cgColor
         host.onTargetChange = { [weak self] targeted in self?.idleView.setDropTargeted(targeted) }
         // Hop out of the drag callback before any modal alert.
         host.onDrop = { [weak self] urls in DispatchQueue.main.async { self?.handleDrop(urls) } }
@@ -213,26 +211,30 @@ final class VoceController: NSViewController {
 
     fileprivate func render(_ newState: State) {
         state = newState
-        idleView.isHidden = true
-        workingView.isHidden = true
-        resultView.isHidden = true
+        let screens: [NSView] = [idleView, workingView, resultView]
+        let incoming: NSView
+        switch newState {
+        case .idle: incoming = idleView
+        case .working: incoming = workingView
+        case .done: incoming = resultView
+        }
+        for screen in screens where screen !== incoming { screen.isHidden = true }
         // The clock is started by `open`; only stop it when leaving the working screen.
         if case .working = newState {} else { workingView.stop() }
 
         switch newState {
         case .idle:
             idleView.show(message: nil)
-            idleView.isHidden = false
             view.window?.makeFirstResponder(idleView.focusTarget)
         case .working:
-            workingView.isHidden = false
             view.window?.makeFirstResponder(workingView)
         case .done(let file, let text):
             transcriptKept = false
             resultView.show(file: file, text: text)
-            resultView.isHidden = false
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
+        // Only fade when the screen actually changes; status updates re-render nothing.
+        if incoming.isHidden { Motion.fadeIn(incoming) }
     }
 }
 
@@ -241,7 +243,10 @@ extension VoceController {
     /// Screenshot aid (debug builds only): `VOCE_PREVIEW=idle|error|working|waiting|result`.
     func debugPreview(_ name: String) {
         switch name {
+        case "idle":
+            render(.idle)
         case "error":
+            render(.idle)
             idleView.show(message: "registrazione.m4a: Non riesco a raggiungere il servizio. Controlla la connessione e riprova.", actionTitle: "Riprova") {}
         case "working", "waiting":
             workingView.begin(file: "Intervista con Giulia Montecchi.m4a")
