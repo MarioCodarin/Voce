@@ -168,7 +168,10 @@ final class ProgressBar: NSView {
         }
     }
 
-    override func accessibilityValue() -> Any? {
+    override func accessibilityValue() -> Any? { NSNumber(value: isIndeterminate ? 0 : value) }
+    override func accessibilityMinValue() -> Any? { NSNumber(value: 0) }
+    override func accessibilityMaxValue() -> Any? { NSNumber(value: 1) }
+    override func accessibilityValueDescription() -> String? {
         isIndeterminate ? "In corso" : "\(Int((value * 100).rounded())) per cento"
     }
 }

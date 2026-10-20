@@ -16,7 +16,7 @@ hover/focus animation or VoiceOver output. Those were checked by reading the cod
 | 3 | Visual design | 6 | 8 | Tokens in `Theme/DesignSystem.swift` (4pt grid, radii, type, colours). One accent. Dashed drop zone, custom progress bar, 640 pt reading column. |
 | 4 | Native feel | 5 | 8 | System colours, unified transparent title bar, Vista menu with full screen, Hide Others, ⌘, settings. No vibrancy: a single-purpose window reads better solid. Settings window is stock AppKit. |
 | 5 | Dark mode and accent | 3 | 9 | Was forced dark with hardcoded colours. Now follows the system; text and surfaces are semantic colours, accent has a text variant per appearance. |
-| 6 | Interaction and motion | 4 | 8 | Screen cross-fade 220 ms, bar fill animates, hover/pressed on buttons and drop zone, keyboard-only focus ring. All honour Reduce Motion. |
+| 6 | Interaction and motion | 4 | 8 | Incoming screen fades in over 220 ms (the outgoing one hides instantly), bar fill animates, hover/pressed on buttons and drop zone, keyboard-only focus ring. All honour Reduce Motion. |
 | 7 | UX flow | 6 | 8 | Primary action on the result is now Copia (was Nuovo). Errors carry an icon, drop the mark to save room, and offer one button. Tooltips show shortcuts. |
 | 8 | Accessibility | 6 | 8 | Progress bar exposes a value, VoiceOver hears 25/50/75 %, drop zone has a help string, errors don't rely on colour. Not exercised with VoiceOver running. |
 

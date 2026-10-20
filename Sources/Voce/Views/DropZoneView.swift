@@ -36,7 +36,7 @@ final class DropZoneView: NSView {
             stroke = Palette.accentText
             path.lineWidth = 2
         } else {
-            stroke = hovering ? Palette.ink.withAlphaComponent(0.32) : Palette.hairline
+            stroke = Palette.muted.withAlphaComponent(hovering ? 0.9 : 0.6)
             path.lineWidth = 1.5
             path.setLineDash([6, 5], count: 2, phase: 0)
         }
