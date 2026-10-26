@@ -16,6 +16,15 @@ struct GlossaryTests {
         #expect(Glossary.initialPrompt(from: "Mario\nOpenRouter") == "Mario, OpenRouter")
     }
 
+    @Test func appShipsTheGlossary() throws {
+        let text = try #require(Glossary.bundledText())
+        #expect(text.contains("Piadineria dei Leoni"))
+        #expect(text.contains("Jolanda Roselli"))
+        #expect(text.contains("Youness Lahmain"))
+        #expect(Glossary.terms(in: text).contains("WG"))
+        #expect(!Glossary.terms(in: text).contains("VG"))
+    }
+
     @Test func headingsAreNotSent() {
         #expect(Glossary.terms(in: "# Nomi\nMario\n\n# Altro\nVoce") == ["Mario", "Voce"])
         #expect(Glossary.initialPrompt(from: "# Nomi\nMario") == "Mario")

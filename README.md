@@ -76,7 +76,7 @@ Dettagli in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Impostazioni
 
-Voce > Impostazioni (⌘,). La chiave OpenRouter è in chiaro, con **Copia**, così non serve aprirla nel Portachiavi. Il glossario è una parola o un nome per riga: viene passato al modello a ogni trascrizione.
+Voce > Impostazioni (⌘,). Incolla la chiave OpenRouter nel campo. Il glossario di partenza è `Sources/VoceKit/Resources/glossary.txt`, dentro l'app: una parola o un nome per riga, passato al modello a ogni trascrizione. Salvare in Impostazioni scrive `~/.config/voce/glossary.txt`, che da quel momento ha la precedenza.
 
 ## Chiave OpenRouter
 

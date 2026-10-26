@@ -1,6 +1,9 @@
 import Foundation
 
-/// Words and names the model should prefer, one per line in `~/.config/voce/glossary.txt`.
+/// Words and names the model should prefer.
+///
+/// The copy that ships with the app is `Resources/glossary.txt`. A file at
+/// `~/.config/voce/glossary.txt` overrides it after Impostazioni saves.
 public enum Glossary {
     static let file = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/voce/glossary.txt")
@@ -15,15 +18,29 @@ public enum Glossary {
         case unreadable
     }
 
-    /// Reads the glossary. An unreadable file must not be treated as empty: saving that
-    /// would delete it.
-    public static func read() -> Read {
-        guard FileManager.default.fileExists(atPath: file.path) else { return .missing }
-        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return .unreadable }
-        return .loaded(text)
+    /// The glossary shipped inside the app, or nil when this process has no resource bundle.
+    static func bundledText() -> String? {
+        let bundled = Bundle.module.url(forResource: "glossary", withExtension: "txt", subdirectory: "Resources")
+            ?? Bundle.module.url(forResource: "glossary", withExtension: "txt")
+            ?? Bundle.main.url(forResource: "glossary", withExtension: "txt")
+        guard let bundled, let text = try? String(contentsOf: bundled, encoding: .utf8), !text.isEmpty else {
+            return nil
+        }
+        return text
     }
 
-    /// The file contents, or an empty string when the file is missing or unreadable.
+    /// Reads the glossary. A user file that cannot be decoded is not treated as empty:
+    /// saving that would delete it. When there is no user file, the bundled list is used.
+    public static func read() -> Read {
+        if FileManager.default.fileExists(atPath: file.path) {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { return .unreadable }
+            return .loaded(text)
+        }
+        if let bundled = bundledText() { return .loaded(bundled) }
+        return .missing
+    }
+
+    /// The glossary in effect: the saved file, otherwise the list shipped with the app.
     public static var text: String {
         if case .loaded(let text) = read() { return text }
         return ""

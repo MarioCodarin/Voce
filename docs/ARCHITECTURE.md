@@ -18,7 +18,7 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 | `TranscribeError` | errori con messaggio italiano (`LocalizedError`) |
 | `AudioFormat.headline`, `.isSupported(extension:)` | formati accettati |
 | `CLI.run(args:)` | esegue `--transcribe`; false se l'app deve aprirsi |
-| `Glossary` | parole frequenti, una per riga in `~/.config/voce/glossary.txt` |
+| `Glossary` | parole frequenti. Elenco nell'app: `Sources/VoceKit/Resources/glossary.txt`. Dopo un salvataggio, `~/.config/voce/glossary.txt` ha la precedenza |
 
 Tutto il resto è `internal` e raggiungibile dai test con `@testable import`.
 

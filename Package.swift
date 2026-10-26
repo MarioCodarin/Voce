@@ -13,7 +13,8 @@ let package = Package(
         // Transcription logic: audio, network, CLI. No AppKit, so it is unit-testable.
         .target(
             name: "VoceKit",
-            path: "Sources/VoceKit"
+            path: "Sources/VoceKit",
+            resources: [.copy("Resources/glossary.txt")]
         ),
         // The Mac app: window, views, menu. Depends only on VoceKit's public API.
         .executableTarget(

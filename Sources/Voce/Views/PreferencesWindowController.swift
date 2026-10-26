@@ -1,10 +1,13 @@
 import AppKit
 import VoceKit
 
-/// Settings: the OpenRouter key, shown in clear so it can be copied, and the glossary.
+/// Settings: paste the OpenRouter key, and edit the glossary.
 final class PreferencesWindowController: NSWindowController {
     private let field = NSTextField()
-    private let glossary = NSTextView()
+    /// `scrollableTextView` gives the editor a real text container. A bare `NSTextView()`
+    /// has a zero frame, so the glossary string is stored and never drawn.
+    private let glossaryScroll = NSTextView.scrollableTextView()
+    private var glossary: NSTextView { glossaryScroll.documentView as! NSTextView }
     private let status = NSTextField(labelWithString: "")
     /// True when the glossary file exists but could not be read. An empty editor must not delete it.
     private var glossaryUnreadable = false
@@ -57,25 +60,6 @@ final class PreferencesWindowController: NSWindowController {
         field.cell?.isScrollable = true
         field.setAccessibilityLabel("Chiave OpenRouter")
 
-        let copy = NSButton(title: "Copia", target: self, action: #selector(copyKey))
-        copy.bezelStyle = .inline
-        copy.isBordered = false
-        copy.contentTintColor = Palette.accentText
-        copy.font = Typo.labelStrong
-        copy.setAccessibilityLabel("Copia la chiave OpenRouter")
-
-        let keyRow = NSStackView(views: [field, copy])
-        keyRow.orientation = .horizontal
-        keyRow.alignment = .centerY
-        keyRow.spacing = Space.s
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        copy.setContentHuggingPriority(.required, for: .horizontal)
-
-        let hint = NSTextField(wrappingLabelWithString:
-            "Visibile qui, così la puoi copiare senza aprire il Portachiavi. Resta salvata nel Portachiavi. La variabile VOCE_OPENROUTER_KEY, se presente, ha la precedenza.")
-        hint.font = Typo.caption
-        hint.textColor = Palette.muted
-
         let glossaryLabel = NSTextField(labelWithString: "Glossario")
         glossaryLabel.font = Typo.labelStrong
 
@@ -95,13 +79,9 @@ final class PreferencesWindowController: NSWindowController {
         glossary.isHorizontallyResizable = false
         glossary.textContainer?.widthTracksTextView = true
         glossary.setAccessibilityLabel("Glossario")
-
-        let scroll = NSScrollView()
-        scroll.documentView = glossary
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
-        scroll.borderType = .bezelBorder
-        scroll.drawsBackground = false
+        glossaryScroll.borderType = .bezelBorder
+        glossaryScroll.hasVerticalScroller = true
+        glossaryScroll.autohidesScrollers = true
 
         let glossaryHint = NSTextField(wrappingLabelWithString:
             "Una parola o un nome per riga. Una riga che inizia con # è un titolo e non viene inviata. L'elenco vale per l'inizio di ogni pezzo.")
@@ -124,7 +104,7 @@ final class PreferencesWindowController: NSWindowController {
         buttons.spacing = Space.m
         buttons.alignment = .centerY
 
-        let stack = NSStackView(views: [label, keyRow, hint, glossaryLabel, scroll, glossaryHint, buttons])
+        let stack = NSStackView(views: [label, field, glossaryLabel, glossaryScroll, glossaryHint, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Space.s
@@ -132,32 +112,19 @@ final class PreferencesWindowController: NSWindowController {
         window.contentView?.addSubview(stack)
         guard let content = window.contentView else { return }
         let wide = [
-            keyRow, hint, scroll, glossaryHint, buttons
+            field, glossaryScroll, glossaryHint, buttons
         ]
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: Space.xl),
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -Space.xl),
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: Space.xl),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -Space.l),
-            scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 120)
+            glossaryScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
         ] + wide.map { $0.widthAnchor.constraint(equalTo: stack.widthAnchor) })
     }
 
     @objc private func openKeys() {
         NSWorkspace.shared.open(URL(string: "https://openrouter.ai/keys")!)
-    }
-
-    @objc private func copyKey() {
-        let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else {
-            status.stringValue = "Nessuna chiave da copiare"
-            Announcer.say(status.stringValue)
-            return
-        }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(key, forType: .string)
-        status.stringValue = "Chiave copiata"
-        Announcer.say(status.stringValue)
     }
 
     @objc private func save() {

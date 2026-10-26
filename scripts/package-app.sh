@@ -1,5 +1,6 @@
 #!/bin/zsh
 set -euo pipefail
+setopt NULL_GLOB
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -14,10 +15,12 @@ cp "$BIN" "$APP/Contents/MacOS/Voce"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Assets/AppIcon.png" "$APP/Contents/Resources/AppIcon.png"
+cp "$ROOT/Sources/VoceKit/Resources/glossary.txt" "$APP/Contents/Resources/glossary.txt"
 BIN_DIR="$(dirname "$BIN")"
-if [ -d "$BIN_DIR/Voce_Voce.bundle" ]; then
-  cp -R "$BIN_DIR/Voce_Voce.bundle" "$APP/Contents/Resources/"
-fi
+for bundle in "$BIN_DIR"/*.bundle; do
+  [ -d "$bundle" ] || continue
+  cp -R "$bundle" "$APP/Contents/Resources/"
+done
 chmod +x "$APP/Contents/MacOS/Voce"
 codesign -s - --force "$APP" >/dev/null
 

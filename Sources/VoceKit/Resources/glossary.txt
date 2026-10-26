@@ -1,0 +1,165 @@
+# Sigle
+CoC
+Codice di condotta
+WG
+Working Group
+WG Vice
+Working Group Vice
+OdG
+Ordine del giorno
+RL
+Rappresentante locale
+RS
+Responsabile sezione
+RE
+Responsabile Erasmus
+PN
+Piattaforma nazionale
+RdB
+Riunione di Board
+CM
+Communication Manager
+ML
+mailing list
+AO
+Assemblea Ordinaria
+AS
+Assemblea Straordinaria
+HR
+recruitment
+OC
+Organizing Committee
+SITS
+ESN
+Erasmus Student Network
+Board Supporters
+
+# Luoghi
+ARCI
+Circolo ARCI Gardenia
+Piadineria dei Leoni
+Anti-Messico
+
+# Termini inglesi
+fee
+call
+deadline
+venue
+meeting
+briefing
+debriefing
+feedback
+follow-up
+update
+event
+trip
+welcome
+team
+staff
+check-in
+check-out
+slot
+shift
+ticket
+budget
+partnership
+
+# Sistemi
+Jupiter
+Stripe
+ESN MoRe
+
+# Nomi
+Alessio
+Jolanda
+Adriana Camerino
+Alberto Signoretti
+Alessandro Amella
+Alessio Romagnoli
+Alex Nguyen
+Alice Alighieri
+Alice Carli
+Alice Spadoni
+Alisson Huamani
+Alyzza Francisco Castro
+Andrea Amodeo
+Andrea Colacicco
+Arianna Tortora
+Aurora Pettinato
+Biagio Lissandrello
+Chiara Foschini
+Christian Romano
+Cristian Marchi
+Dario Viola
+Davide Mecugni
+Fahd Daor
+Federico Motta
+Filippo Leonelli
+Francesco De Nicola
+Franz Warren Ortega Hernandez
+Gianluca Ravaglia
+Gianluca Versaci
+Giorgia Capra
+Giulia Falcone
+Giulia Marchetti
+Giulia Trapani
+Giulia Tuccella
+Hilary Iorio
+Irene Malaguti
+Jolanda Roselli
+Kousai Bakari
+Luca Bertocchi
+Marco Ruggieri
+Mariaceleste Calabria
+Mario Codarin
+Martina Fanelli
+Matilde De Felice
+Mattia Bernabei
+Melissa Sorzini
+Mia Damin
+Natalia Silvestri
+Nicolas Santini
+Petru Ciobanu
+Rocco Marcantonio
+Salvatore Bracale
+Sanaa Aailoum
+Simone Cuoghi
+Tommaso Cavalli
+
+# Alumni
+Alessandro Zanoli
+Andrea Baravelli
+Andrea Gibellini
+Bartola Valentina Buccheri
+Benedetta Mazzocchi
+Carlo Carrillo
+Daniela Di Viesti
+Davide Chinni
+Egidio La Spisa
+Elena Bertoncelli
+Federica Merante
+Filippo Bertoncelli
+Filippo Giovanni Daidone
+Francesco Barbari
+Gaia Tamasi
+Glauco Perri
+Luca Scanu
+Manal Ben Aroub
+Manuele Barraco
+Marco Spanò
+Martina Santinelli
+Matteo Carbone
+Mattia Setti
+Melissa Benedetti
+Michela Gragnaniello
+Nicolae Soroncean
+Nicolò Bersanelli
+Sandra Guiu Garcia
+Shada Khurshid
+Simona Marzino
+Sonia Macchioni
+Valeria Giorgio
+Valeria Soroncean
+Veronica Mandaglio
+Xinna Zhu
+Youness Lahmain
