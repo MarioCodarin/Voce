@@ -2,7 +2,7 @@
 
 Piccola app macOS per trascrivere audio in italiano.
 
-Usa `microsoft/mai-transcribe-2` su OpenRouter. Trascina un file, aspetta, copia o salva il testo.
+Usa `qwen/qwen3-asr-1.7b` su OpenRouter (italiano, circa $0,027 l'ora). Trascina un file, aspetta, copia o salva il testo.
 
 ## Funzioni
 
@@ -74,9 +74,13 @@ docs/ARCHITECTURE.md
 
 Dettagli in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Impostazioni
+
+Voce > Impostazioni (⌘,). La chiave OpenRouter è in chiaro, con **Copia**, così non serve aprirla nel Portachiavi. Il glossario è una parola o un nome per riga: viene passato al modello a ogni trascrizione.
+
 ## Chiave OpenRouter
 
-La chiave non è nel repository. Creane una su [openrouter.ai/keys](https://openrouter.ai/keys) e salvala in uno di questi modi:
+La chiave non è nel repository. Creane una su [openrouter.ai/keys](https://openrouter.ai/keys) e salvala in Impostazioni, oppure in uno di questi modi:
 
 ```bash
 # per l'app avviata dal Finder

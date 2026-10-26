@@ -2,8 +2,12 @@ import Foundation
 
 /// Fixed settings for the transcription service. Change them here, nowhere else.
 enum TranscriptionConfig {
-    static let model = "microsoft/mai-transcribe-2"
+    static let model = "qwen/qwen3-asr-1.7b"
     static let language = "it"
+    /// OpenRouter ignores a top-level `prompt`. DeepInfra's field for a vocabulary hint
+    /// is `initial_prompt`, forwarded under this endpoint tag.
+    static let glossaryProvider = "deepinfra/us"
+    static let glossaryField = "initial_prompt"
     static let endpoint = URL(string: "https://openrouter.ai/api/v1/audio/transcriptions")!
     static let appTitle = "Voce"
     static let referer = "https://github.com/MarioCodarin/Voce"

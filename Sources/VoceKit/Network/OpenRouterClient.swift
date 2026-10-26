@@ -5,15 +5,19 @@ struct OpenRouterClient: Sendable {
     private let apiKey: String
     private let session: URLSession
     private let retryDelay: Duration
+    /// Snapshot of the glossary, so a job does not change mid-upload if Impostazioni is saved.
+    private let glossaryPrompt: String?
 
     init(
         apiKey: String? = nil,
         session: URLSession = .shared,
-        retryDelay: Duration = .seconds(2)
+        retryDelay: Duration = .seconds(2),
+        glossaryPrompt: String? = nil
     ) {
         self.apiKey = apiKey ?? Secrets.openRouterKey
         self.session = session
         self.retryDelay = retryDelay
+        self.glossaryPrompt = glossaryPrompt?.isEmpty == true ? nil : glossaryPrompt
     }
 
     /// Fails fast when no key is configured, before any audio work is done.
@@ -37,21 +41,16 @@ struct OpenRouterClient: Sendable {
 
     private func send(_ fileURL: URL) async throws -> String {
         try validateKey()
-        let multipart = MultipartBody()
-        let bodyURL = TempFiles.url(extension: "multipart")
+        let bodyURL = TempFiles.url(extension: "body")
         defer { TempFiles.remove(bodyURL) }
-        try multipart.write(
-            fields: [("model", TranscriptionConfig.model), ("language", TranscriptionConfig.language)],
-            file: fileURL,
-            to: bodyURL
-        )
+        let contentType = try TranscriptionRequest.write(audio: fileURL, glossaryPrompt: glossaryPrompt, to: bodyURL)
 
         var request = URLRequest(url: TranscriptionConfig.endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue(TranscriptionConfig.appTitle, forHTTPHeaderField: "X-Title")
         request.setValue(TranscriptionConfig.referer, forHTTPHeaderField: "HTTP-Referer")
-        request.setValue(multipart.contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = TranscriptionConfig.requestTimeout
 
         let data: Data

@@ -18,6 +18,7 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 | `TranscribeError` | errori con messaggio italiano (`LocalizedError`) |
 | `AudioFormat.headline`, `.isSupported(extension:)` | formati accettati |
 | `CLI.run(args:)` | esegue `--transcribe`; false se l'app deve aprirsi |
+| `Glossary` | parole frequenti, una per riga in `~/.config/voce/glossary.txt` |
 
 Tutto il resto è `internal` e raggiungibile dai test con `@testable import`.
 
@@ -29,7 +30,8 @@ Transcriber.transcribe
  ├─ AudioChunker.split                 ≤ 5 min → il file stesso; altrimenti fette M4A (overlap 2 s)
  └─ per ogni fetta
      ├─ AudioConverter.compactForUpload   mono 16 kHz: MP3 64k (ffmpeg) o WAV (afconvert)
-     ├─ OpenRouterClient.transcribe       multipart su disco, retry con backoff su rete/429/5xx
+     ├─ OpenRouterClient.transcribe       multipart su disco; con glossario, JSON e initial_prompt
+     │                                  retry con backoff su rete/429/5xx
      └─ (file temporanei rimossi)
  └─ TranscriptStitcher.stitch          unisce, scarta le parole ripetute al taglio
 ```
