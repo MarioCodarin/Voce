@@ -22,8 +22,8 @@ public enum CLI {
                     let line = String(format: "[%3.0f%%] %@\n", progress * 100, status)
                     FileHandle.standardError.write(Data(line.utf8))
                 }
-                // Task 7 adds the model caption to this line.
                 try outcome.transcript.text.write(to: arguments.output, atomically: true, encoding: .utf8)
+                FileHandle.standardError.write(Data("Scritto \(arguments.output.path) (\(outcome.model.displayName))\n".utf8))
                 FileHandle.standardError.write(Data("Scritto \(arguments.output.path)\n".utf8))
             } catch {
                 fputs("errore: \(error.localizedDescription)\n", stderr)

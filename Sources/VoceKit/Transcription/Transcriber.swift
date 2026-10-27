@@ -9,6 +9,12 @@ public struct TranscriptionOutcome: Sendable {
     public var transcript: RichTranscript
     public var model: TranscriptionModel
     public var durationSeconds: Double
+
+    public init(transcript: RichTranscript, model: TranscriptionModel, durationSeconds: Double) {
+        self.transcript = transcript
+        self.model = model
+        self.durationSeconds = durationSeconds
+    }
 }
 
 public struct Transcriber: Sendable {
