@@ -5,6 +5,10 @@ import Foundation
 /// Chunks overlap by a couple of seconds, so the end of one transcript often repeats at the
 /// start of the next. When that happens the repeat is dropped and the parts are joined with a
 /// space; otherwise they are separated by a blank line.
+///
+/// `stitchSegments` is the speaker-aware twin: same seam logic, but a repeated
+/// passage only merges when both sides share the speaker (untagged counts as
+/// sharing with untagged); otherwise the boundary stays a paragraph break.
 enum TranscriptStitcher {
     /// Longest repeat (in words) we look for at a seam.
     private static let maxOverlapWords = 20
@@ -24,6 +28,35 @@ enum TranscriptStitcher {
                 result += rest.isEmpty ? "" : " " + rest
             } else {
                 result += "\n\n" + next
+            }
+        }
+        return result
+    }
+
+    static func stitchSegments(_ parts: [[TranscriptSegment]]) -> [TranscriptSegment] {
+        var result: [TranscriptSegment] = []
+        for part in parts {
+            let segments = part.map { segment -> TranscriptSegment in
+                var copy = segment
+                copy.text = copy.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                return copy
+            }.filter { !$0.text.isEmpty }
+            guard !segments.isEmpty else { continue }
+            guard var tail = result.last, let head = segments.first else {
+                result += segments
+                continue
+            }
+
+            let overlap = overlapWordCount(tail: tail.text, head: head.text)
+            if overlap > 0, tail.speaker == head.speaker {
+                let rest = dropLeadingWords(head.text, count: overlap)
+                if !rest.isEmpty {
+                    tail.text += " " + rest
+                    result[result.count - 1] = tail
+                }
+                result += segments.dropFirst()
+            } else {
+                result += segments
             }
         }
         return result
