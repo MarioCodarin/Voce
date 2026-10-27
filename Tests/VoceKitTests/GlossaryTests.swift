@@ -52,9 +52,10 @@ struct TranscriptionRequestTests {
         #expect(text.contains("name=\"model\"\r\n\r\n\(TranscriptionConfig.model)\r\n"))
         #expect(text.contains("name=\"language\"\r\n\r\nit\r\n"))
         #expect(!text.contains("initial_prompt"))
+        #expect(!text.contains("\"prompt\""))
     }
 
-    @Test func glossaryGoesToDeepInfraInitialPrompt() throws {
+    @Test func glossaryGoesToEachProvidersField() throws {
         let (audio, body) = try temporaryPair(ext: "wav")
         defer { cleanup(audio, body) }
         let bytes = Data("AUDIO".utf8)
@@ -70,8 +71,11 @@ struct TranscriptionRequestTests {
         #expect(input["data"] as? String == bytes.base64EncodedString())
         let provider = try #require(object["provider"] as? [String: Any])
         let options = try #require(provider["options"] as? [String: Any])
-        let deepinfra = try #require(options[TranscriptionConfig.glossaryProvider] as? [String: Any])
-        #expect(deepinfra[TranscriptionConfig.glossaryField] as? String == "Mario, Voce")
+        #expect(options.count == TranscriptionConfig.glossaryFields.count)
+        for (providerName, field) in TranscriptionConfig.glossaryFields {
+            let entry = try #require(options[providerName] as? [String: Any])
+            #expect(entry[field] as? String == "Mario, Voce")
+        }
     }
 
     private func temporaryPair(ext: String) throws -> (URL, URL) {

@@ -2,7 +2,7 @@
 
 Piccola app macOS per trascrivere audio in italiano.
 
-Usa `qwen/qwen3-asr-1.7b` su OpenRouter (italiano, circa $0,027 l'ora). Trascina un file, aspetta, copia o salva il testo.
+Usa `openai/whisper-large-v3` su OpenRouter (italiano). OpenRouter sceglie il provider: DeepInfra $0,027/ora, Together $0,09/ora, Groq $0,111/ora (prezzi dell'endpoint, 26 ott 2026). Trascina un file, aspetta, copia o salva il testo.
 
 ## Funzioni
 

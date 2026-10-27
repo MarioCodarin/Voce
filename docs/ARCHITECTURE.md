@@ -30,7 +30,7 @@ Transcriber.transcribe
  ├─ AudioChunker.split                 ≤ 5 min → il file stesso; altrimenti fette M4A (overlap 2 s)
  └─ per ogni fetta
      ├─ AudioConverter.compactForUpload   mono 16 kHz: MP3 64k (ffmpeg) o WAV (afconvert)
-     ├─ OpenRouterClient.transcribe       multipart su disco; con glossario, JSON e initial_prompt
+     ├─ OpenRouterClient.transcribe       multipart su disco; con glossario, JSON verso il campo di ogni provider
      │                                  retry con backoff su rete/429/5xx
      └─ (file temporanei rimossi)
  └─ TranscriptStitcher.stitch          unisce, scarta le parole ripetute al taglio

@@ -23,11 +23,7 @@ enum TranscriptionRequest {
                 "format": format(for: fileURL)
             ],
             "provider": [
-                "options": [
-                    TranscriptionConfig.glossaryProvider: [
-                        TranscriptionConfig.glossaryField: glossaryPrompt
-                    ]
-                ]
+                "options": TranscriptionConfig.glossaryFields.mapValues { [$0: glossaryPrompt] }
             ]
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
