@@ -24,7 +24,8 @@ final class TranscriptionJob {
         task = Task.detached { [weak self] in
             let event: Event
             do {
-                let text = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
+                // Task 7 carries the full outcome through the event.
+                let outcome = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
                     Task { @MainActor in
                         guard let self, self.generation == id else { return }
                         handler(.progress(value, status))
@@ -35,7 +36,7 @@ final class TranscriptionJob {
                         handler(.waiting(status))
                     }
                 })
-                event = .finished(text)
+                event = .finished(outcome.transcript.text)
             } catch is CancellationError {
                 return
             } catch {
