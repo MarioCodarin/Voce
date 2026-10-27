@@ -23,20 +23,39 @@ final class ResultView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    func show(file: String, text: String) {
-        let words = text.split(whereSeparator: \.isWhitespace).count
+    func show(file: String, text: String, caption: String) {
         fileLabel.stringValue = file
-        countLabel.stringValue = "\(words) \(words == 1 ? "parola" : "parole")"
-        textView.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: Self.textAttributes))
+        countLabel.stringValue = caption
+        textView.textStorage?.setAttributedString(Self.styled(text))
         textView.scrollToBeginningOfDocument(nil)
         resetCopyTitle()
     }
 
-    private static let textAttributes: [NSAttributedString.Key: Any] = {
+    /// Speaker turns lead with their label; everything else follows the plan:
+    /// `Parlante N:` in semibold accent, body text in ink, blank line between turns.
+    private static func styled(_ text: String) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 5
-        return [.font: Typo.body, .foregroundColor: Palette.ink, .paragraphStyle: paragraph]
-    }()
+        let body: [NSAttributedString.Key: Any] = [.font: Typo.body, .foregroundColor: Palette.ink, .paragraphStyle: paragraph]
+        let speaker: [NSAttributedString.Key: Any] = [.font: Typo.labelStrong, .foregroundColor: Palette.accentText]
+
+        let result = NSMutableAttributedString()
+        let turns = text.components(separatedBy: "\n\n")
+        for (index, turn) in turns.enumerated() {
+            if index > 0 { result.append(NSAttributedString(string: "\n\n", attributes: body)) }
+            let trimmed = turn.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let colon = trimmed.firstIndex(of: ":"),
+               trimmed[..<colon].range(of: #"^Parlante \d+$"#, options: .regularExpression) != nil {
+                let label = String(trimmed[...colon])
+                result.append(NSAttributedString(string: label, attributes: speaker))
+                result.append(NSAttributedString(string: String(trimmed[trimmed.index(after: colon)...]), attributes: body))
+            } else {
+                result.append(NSAttributedString(string: turn, attributes: body))
+            }
+        }
+        return result
+    }
+
 
     /// Briefly swaps the Copy button's title to confirm the copy happened.
     func flashCopied() {

@@ -90,7 +90,9 @@ final class VoceController: NSViewController {
     private func start(_ url: URL) {
         sourceURL = url
         let name = url.lastPathComponent
-        workingView.begin(file: name)
+        // Same instant the Transcriber snapshots it: this is the job's model.
+        let model = ModelStore.current
+        workingView.begin(file: name, model: model)
         render(.working)
         job.start(url) { [weak self] event in
             guard let self else { return }
@@ -232,7 +234,10 @@ final class VoceController: NSViewController {
             view.window?.makeFirstResponder(workingView)
         case .done(let file, let outcome):
             transcriptKept = false
-            resultView.show(file: file, text: outcome.transcript.text)
+            let words = outcome.transcript.text.split(whereSeparator: \.isWhitespace).count
+            let seconds = Int(outcome.durationSeconds)
+            let caption = "\(words) \(words == 1 ? "parola" : "parole") · \(outcome.model.displayName) · \(seconds / 60):\(String(format: "%02d", seconds % 60))"
+            resultView.show(file: file, text: outcome.transcript.text, caption: caption)
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
     }
@@ -249,7 +254,7 @@ extension VoceController {
             render(.idle)
             idleView.show(message: "registrazione.m4a: Non riesco a raggiungere il servizio. Controlla la connessione e riprova.", actionTitle: "Riprova") {}
         case "working", "waiting":
-            workingView.begin(file: "Intervista con Giulia Montecchi.m4a")
+            workingView.begin(file: "Intervista con Giulia Montecchi.m4a", model: .maiTranscribe2)
             render(.working)
             if name == "working" {
                 workingView.update(status: "Trascrivo la parte 2 di 5", progress: 0.42)
@@ -261,7 +266,7 @@ extension VoceController {
             let preview = TranscriptionOutcome(
                 transcript: RichTranscript(segments: [TranscriptSegment(speaker: 1, text: String(repeating: paragraph, count: 6), start: 0)]),
                 model: .maiTranscribe2,
-                durationSeconds: 0
+                durationSeconds: 3720
             )
             render(.done(file: "Intervista con Giulia Montecchi.m4a", outcome: preview))
         default:

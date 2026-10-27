@@ -1,4 +1,5 @@
 import AppKit
+import VoceKit
 
 /// Second screen: file name, status, progress bar, elapsed time and a cancel button.
 final class WorkingView: NSView {
@@ -12,6 +13,8 @@ final class WorkingView: NSView {
 
     private var timer: Timer?
     private var startedAt = Date()
+    /// Shown in front of the progress line for the whole job.
+    private var modelName = ""
     /// Last quarter announced to VoiceOver, so progress is spoken at 25/50/75% and not on every tick.
     private var announcedQuarter = 0
 
@@ -23,8 +26,9 @@ final class WorkingView: NSView {
     required init?(coder: NSCoder) { nil }
 
     /// Resets the screen for a new job and starts the elapsed-time clock.
-    func begin(file: String) {
+    func begin(file: String, model: TranscriptionModel) {
         fileLabel.stringValue = file
+        modelName = model.displayName
         statusLabel.stringValue = "In ascolto…"
         progress.setIndeterminate(false)
         progress.setValue(0, animated: false)
@@ -74,11 +78,12 @@ final class WorkingView: NSView {
     private func refreshDetail() {
         let elapsed = Int(Date().timeIntervalSince(startedAt))
         let time = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+        let prefix = modelName.isEmpty ? "" : modelName + "  ·  "
         if progress.isIndeterminate {
-            detailLabel.stringValue = time
+            detailLabel.stringValue = prefix + time
         } else {
             let percent = Int((progress.value * 100).rounded())
-            detailLabel.stringValue = "\(percent)%  ·  \(time)"
+            detailLabel.stringValue = "\(prefix)\(percent)%  ·  \(time)"
         }
     }
 
