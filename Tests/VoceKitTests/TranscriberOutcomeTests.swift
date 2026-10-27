@@ -63,16 +63,12 @@ struct TranscriberOutcomeTests {
     }
 
     @Test func transcribeReturnsOutcome() async throws {
-        ModelStore.defaults = UserDefaults(suiteName: "VoceOutcomeTests")!
-        ModelStore.cleanupEnabled = false
-        defer { ModelStore.defaults.removePersistentDomain(forName: "VoceOutcomeTests") }
-
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [OutcomeStub.self]
         let client = OpenRouterClient(
             apiKey: "k", session: URLSession(configuration: config),
             retryDelay: .milliseconds(1), model: .whisperLargeV3, glossaryTerms: [])
-        let transcriber = Transcriber(client: client, model: .whisperLargeV3)
+        let transcriber = Transcriber(client: client, model: .whisperLargeV3, cleanupEnabled: false)
         let wav = silentWAV()
         defer { try? FileManager.default.removeItem(at: wav) }
 

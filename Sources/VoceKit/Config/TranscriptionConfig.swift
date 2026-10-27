@@ -18,4 +18,6 @@ enum TranscriptionConfig {
     static let requestTimeout: TimeInterval = 1800
     /// Total attempts per chunk for transient failures (network, 429, 5xx).
     static let maxAttempts = 3
+    /// Cheap chat model for the cleanup pass. Verified live on 2026-10-28.
+    static let cleanupModel = "openai/gpt-4o-mini"
 }

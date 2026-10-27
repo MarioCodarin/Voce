@@ -19,15 +19,19 @@ public struct Transcriber: Sendable {
 
     private let client: OpenRouterClient
     private let model: TranscriptionModel
+    /// Captured at init: tests pin it without touching the shared store.
+    private let cleanupEnabled: Bool
 
     public init(model: TranscriptionModel = ModelStore.current) {
         self.model = model
+        self.cleanupEnabled = ModelStore.cleanupEnabled
         self.client = OpenRouterClient(model: model, glossaryTerms: Glossary.terms)
     }
 
-    init(client: OpenRouterClient, model: TranscriptionModel) {
+    init(client: OpenRouterClient, model: TranscriptionModel, cleanupEnabled: Bool = ModelStore.cleanupEnabled) {
         self.client = client
         self.model = model
+        self.cleanupEnabled = cleanupEnabled
     }
 
     public func transcribe(
@@ -73,8 +77,23 @@ public struct Transcriber: Sendable {
             onProgress(base + chunkShare, label)
         }
 
-        let transcript = RichTranscript(segments: TranscriptStitcher.stitchSegments(parts))
+        var transcript = RichTranscript(segments: TranscriptStitcher.stitchSegments(parts))
         guard !transcript.text.isEmpty else { throw TranscribeError.emptyTranscript }
+
+        if cleanupEnabled {
+            onProgress(0.95, label)
+            onWaiting("Controllo lo stile…")
+            try Task.checkCancellation()
+            let polished = await CleanupPass.polish(transcript.text)
+            try Task.checkCancellation()
+            if polished == transcript.text {
+                onWaiting("stile originale conservato")
+            } else {
+                // Segments stay pre-polish; the UI renders turns from the text,
+                // whose Parlante labels the cleanup prompt preserves.
+                transcript.text = polished
+            }
+        }
         onProgress(1.0, label)
         return TranscriptionOutcome(transcript: transcript, model: model, durationSeconds: durationSeconds)
     }
