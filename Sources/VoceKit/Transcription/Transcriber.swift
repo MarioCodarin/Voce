@@ -50,9 +50,11 @@ public struct Transcriber: Sendable {
             onProgress(base + chunkShare * 0.3, label)
 
             onWaiting(chunks.count == 1 ? "Invio e trascrizione…" : "Invio il pezzo \(index + 1) di \(chunks.count)…")
-            parts.append(try await client.transcribe(compact) { attempt in
+            // Interim: Task 5 replaces this with segment-aware stitching.
+            let segments = try await client.transcribe(compact) { attempt in
                 onWaiting("Nuovo tentativo (\(attempt) di \(TranscriptionConfig.maxAttempts))…")
-            })
+            }
+            parts.append(segments.map(\.text).joined(separator: " "))
             onProgress(base + chunkShare, label)
         }
 
