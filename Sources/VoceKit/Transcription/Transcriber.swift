@@ -10,7 +10,7 @@ public struct Transcriber: Sendable {
     private let client: OpenRouterClient
 
     public init() {
-        self.init(client: OpenRouterClient(glossaryPrompt: Glossary.initialPrompt))
+        self.init(client: OpenRouterClient(model: ModelStore.current, glossaryTerms: Glossary.terms))
     }
 
     init(client: OpenRouterClient) {

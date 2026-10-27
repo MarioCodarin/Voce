@@ -5,19 +5,22 @@ struct OpenRouterClient: Sendable {
     private let apiKey: String
     private let session: URLSession
     private let retryDelay: Duration
-    /// Snapshot of the glossary, so a job does not change mid-upload if Impostazioni is saved.
-    private let glossaryPrompt: String?
+    /// Snapshot of the model and glossary, so a job does not change mid-upload if Impostazioni is saved.
+    private let model: TranscriptionModel
+    private let glossaryTerms: [String]
 
     init(
         apiKey: String? = nil,
         session: URLSession = .shared,
         retryDelay: Duration = .seconds(2),
-        glossaryPrompt: String? = nil
+        model: TranscriptionModel = ModelStore.current,
+        glossaryTerms: [String] = []
     ) {
         self.apiKey = apiKey ?? Secrets.openRouterKey
         self.session = session
         self.retryDelay = retryDelay
-        self.glossaryPrompt = glossaryPrompt?.isEmpty == true ? nil : glossaryPrompt
+        self.model = model
+        self.glossaryTerms = glossaryTerms
     }
 
     /// Fails fast when no key is configured, before any audio work is done.
@@ -43,7 +46,7 @@ struct OpenRouterClient: Sendable {
         try validateKey()
         let bodyURL = TempFiles.url(extension: "body")
         defer { TempFiles.remove(bodyURL) }
-        let contentType = try TranscriptionRequest.write(audio: fileURL, glossaryPrompt: glossaryPrompt, to: bodyURL)
+        let contentType = try TranscriptionRequest.write(audio: fileURL, terms: glossaryTerms, model: model, to: bodyURL)
 
         var request = URLRequest(url: TranscriptionConfig.endpoint)
         request.httpMethod = "POST"

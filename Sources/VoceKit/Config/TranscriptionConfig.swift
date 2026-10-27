@@ -2,7 +2,6 @@ import Foundation
 
 /// Fixed settings for the transcription service. Change them here, nowhere else.
 enum TranscriptionConfig {
-    static let model = "openai/whisper-large-v3"
     static let language = "it"
     /// OpenRouter ignores a top-level `prompt`, and ignores `order` / `only` on this
     /// endpoint. Each entry is that provider's own vocabulary field, from its API schema.

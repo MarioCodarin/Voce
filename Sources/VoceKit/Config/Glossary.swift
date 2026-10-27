@@ -46,8 +46,8 @@ public enum Glossary {
         return ""
     }
 
-    /// The hint sent with each request, or nil when the glossary is empty.
-    static var initialPrompt: String? { initialPrompt(from: text) }
+    /// The glossary in effect, as terms. Empty when no glossary is available.
+    static var terms: [String] { terms(in: text) }
 
     /// Saves `text` as one term per line. An empty glossary removes the file.
     @discardableResult
