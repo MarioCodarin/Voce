@@ -9,18 +9,21 @@ final class PreferencesWindowController: NSWindowController {
     private let glossaryScroll = NSTextView.scrollableTextView()
     private var glossary: NSTextView { glossaryScroll.documentView as! NSTextView }
     private let status = NSTextField(labelWithString: "")
+    private let modelPopup = NSPopUpButton()
+    private let modelCaption = NSTextField(wrappingLabelWithString: "")
+    private let cleanupCheck = NSButton(checkboxWithTitle: "Sistema punteggiatura e maiuscole", target: nil, action: nil)
     /// True when the glossary file exists but could not be read. An empty editor must not delete it.
     private var glossaryUnreadable = false
 
     init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 580),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Impostazioni"
-        window.minSize = NSSize(width: 420, height: 420)
+        window.minSize = NSSize(width: 420, height: 540)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         build(in: window)
@@ -32,6 +35,9 @@ final class PreferencesWindowController: NSWindowController {
     override func showWindow(_ sender: Any?) {
         if window?.isVisible != true {
             field.stringValue = Secrets.storedKey ?? ""
+            modelPopup.selectItem(at: TranscriptionModel.allCases.firstIndex(of: ModelStore.current) ?? 0)
+            modelCaption.stringValue = ModelStore.current.caption
+            cleanupCheck.state = ModelStore.cleanupEnabled ? .on : .off
             switch Glossary.read() {
             case .missing:
                 glossary.string = ""
@@ -60,6 +66,18 @@ final class PreferencesWindowController: NSWindowController {
         field.cell?.isScrollable = true
         field.setAccessibilityLabel("Chiave OpenRouter")
 
+        let modelLabel = NSTextField(labelWithString: "Modello di trascrizione")
+        modelLabel.font = Typo.labelStrong
+        modelPopup.addItems(withTitles: TranscriptionModel.allCases.map(\.displayName))
+        modelPopup.target = self
+        modelPopup.action = #selector(modelChanged)
+        modelPopup.setAccessibilityLabel("Modello di trascrizione")
+        modelCaption.font = Typo.caption
+        modelCaption.textColor = Palette.muted
+        cleanupCheck.target = self
+        cleanupCheck.action = #selector(cleanupToggled)
+        cleanupCheck.font = Typo.label
+
         let glossaryLabel = NSTextField(labelWithString: "Glossario")
         glossaryLabel.font = Typo.labelStrong
 
@@ -84,7 +102,7 @@ final class PreferencesWindowController: NSWindowController {
         glossaryScroll.autohidesScrollers = true
 
         let glossaryHint = NSTextField(wrappingLabelWithString:
-            "Una parola o un nome per riga. Una riga che inizia con # è un titolo e non viene inviata. L'elenco vale per l'inizio di ogni pezzo.")
+            "Una parola o un nome per riga. Una riga che inizia con # è un titolo e non viene inviata. L'elenco vale per l'inizio di ogni pezzo. I nomi aiutano soprattutto il modello predefinito.")
         glossaryHint.font = Typo.caption
         glossaryHint.textColor = Palette.muted
 
@@ -104,7 +122,7 @@ final class PreferencesWindowController: NSWindowController {
         buttons.spacing = Space.m
         buttons.alignment = .centerY
 
-        let stack = NSStackView(views: [label, field, glossaryLabel, glossaryScroll, glossaryHint, buttons])
+        let stack = NSStackView(views: [label, field, modelLabel, modelPopup, modelCaption, cleanupCheck, glossaryLabel, glossaryScroll, glossaryHint, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Space.s
@@ -112,7 +130,7 @@ final class PreferencesWindowController: NSWindowController {
         window.contentView?.addSubview(stack)
         guard let content = window.contentView else { return }
         let wide = [
-            field, glossaryScroll, glossaryHint, buttons
+            field, modelPopup, modelCaption, cleanupCheck, glossaryScroll, glossaryHint, buttons
         ]
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: Space.xl),
@@ -121,6 +139,18 @@ final class PreferencesWindowController: NSWindowController {
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -Space.l),
             glossaryScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
         ] + wide.map { $0.widthAnchor.constraint(equalTo: stack.widthAnchor) })
+    }
+
+    /// The model and cleanup choices save immediately; Salva covers key + glossary.
+    @objc private func modelChanged() {
+        let index = modelPopup.indexOfSelectedItem
+        guard TranscriptionModel.allCases.indices.contains(index) else { return }
+        ModelStore.setCurrent(TranscriptionModel.allCases[index])
+        modelCaption.stringValue = ModelStore.current.caption
+    }
+
+    @objc private func cleanupToggled() {
+        ModelStore.cleanupEnabled = cleanupCheck.state == .on
     }
 
     @objc private func openKeys() {

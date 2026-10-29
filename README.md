@@ -2,12 +2,21 @@
 
 Piccola app macOS per trascrivere audio in italiano.
 
-Usa `qwen/qwen3-asr-1.7b` su OpenRouter (italiano, circa $0,027 l'ora). Trascina un file, aspetta, copia o salva il testo.
+Usa `microsoft/mai-transcribe-2` su OpenRouter (italiano, ~$0,16 a riunione di 90 minuti). Trascina un file, aspetta, copia o salva il testo.
 
 ## Funzioni
 
 - Trascina un audio nella finestra, oppure clicca / ⌘O per sceglierlo (m4a, mp3, wav, flac, aac, mp4, ogg, webm).
-- File lunghi oltre 5 minuti vengono spezzati e ricuciti; le parole ripetute nei punti di taglio vengono eliminate.
+- File lunghi vengono spezzati e ricuciti; le parole ripetute nei punti di taglio vengono eliminate.
+- Riconosce chi parla ("Parlante 1:", "Parlante 2:") e sistema punteggiatura e maiuscole a fine lavoro.
+- Modello selezionabile in Impostazioni (prezzi misurati su 90 s, ott 2026):
+
+  | Modello | 90 minuti ≈ | Note |
+  |---|---:|---|
+  | MAI-Transcribe 2 (predefinito) | $0,16 | il migliore sui nomi italiani, con chi parla |
+  | Scribe v2 | $0,36 | frasi più curate, più lento |
+  | Voxtral Small 3 | $0,39 | alternativa |
+  | Whisper Large v3 | $0,04 | modello precedente |
 - Progresso con percentuale e tempo trascorso; Annulla con Esc.
 - Copia (⇧⌘C) e salva `.txt` (⌘S); dopo il salvataggio il file appare nel Finder.
 - I fallimenti temporanei (rete, 429, 5xx) vengono ritentati fino a 3 volte.
@@ -59,10 +68,10 @@ swift test --build-system native -Xswiftc -F$F -Xlinker -F$F \
 ```
 Sources/
   VoceKit/          logica, senza AppKit
-    Config/         impostazioni fisse (modello, lingua, endpoint) e chiave
+    Config/         modelli e selezione (TranscriptionModel, ModelStore), lingua, endpoint e chiave
     Audio/          formati, spezzettamento, conversione, file temporanei
     Network/        client OpenRouter, corpo multipart
-    Transcription/  orchestrazione, ricucitura del testo, errori
+    Transcription/  orchestrazione, segmenti e ricucitura, pulizia stile, errori
     CLI/            modalità --transcribe
   Voce/             app AppKit
     Theme/          DesignSystem (colori, spazi, tipi, durate) e stili dei controlli
@@ -76,7 +85,9 @@ Dettagli in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Impostazioni
 
-Voce > Impostazioni (⌘,). Incolla la chiave OpenRouter nel campo. Il glossario di partenza è `Sources/VoceKit/Resources/glossary.txt`, dentro l'app: una parola o un nome per riga, passato al modello a ogni trascrizione. Salvare in Impostazioni scrive `~/.config/voce/glossary.txt`, che da quel momento ha la precedenza.
+Voce > Impostazioni (⌘,) serve per tre cose: la chiave OpenRouter, il modello di trascrizione (menu a tendina con nota di prezzo) e l'interruttore "Sistema punteggiatura e maiuscole". La chiave resta nel Portachiavi; modello e interruttore sono ricordati dall'app. La pulizia dello stile non cambia mai le parole: se il controllo fallisce, resta il testo originale.
+
+Il glossario di partenza è `Sources/VoceKit/Resources/glossary.txt`, dentro l'app: una parola o un nome per riga, passato al modello a ogni trascrizione (al MAI-Transcribe 2 arriva come elenco di parole chiave). Salvare in Impostazioni scrive `~/.config/voce/glossary.txt`, che da quel momento ha la precedenza.
 
 ## Chiave OpenRouter
 

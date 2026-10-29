@@ -8,7 +8,7 @@ final class VoceController: NSViewController {
     fileprivate enum State {
         case idle
         case working
-        case done(file: String, text: String)
+        case done(file: String, outcome: TranscriptionOutcome)
     }
 
     private let job = TranscriptionJob()
@@ -90,7 +90,9 @@ final class VoceController: NSViewController {
     private func start(_ url: URL) {
         sourceURL = url
         let name = url.lastPathComponent
-        workingView.begin(file: name)
+        // Same instant the Transcriber snapshots it: this is the job's model.
+        let model = ModelStore.current
+        workingView.begin(file: name, model: model)
         render(.working)
         job.start(url) { [weak self] event in
             guard let self else { return }
@@ -99,9 +101,9 @@ final class VoceController: NSViewController {
                 workingView.update(status: status, progress: value)
             case .waiting(let status):
                 workingView.update(waiting: status)
-            case .finished(let text):
+            case .finished(let outcome):
                 notifyIfBackground()
-                render(.done(file: name, text: text))
+                render(.done(file: name, outcome: outcome))
                 Announcer.say("Trascrizione completata")
             case .failed(let error):
                 notifyIfBackground()
@@ -136,15 +138,15 @@ final class VoceController: NSViewController {
     }
 
     @objc func copyTranscript() {
-        guard case .done(_, let text) = state else { return }
+        guard case .done(_, let outcome) = state else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        NSPasteboard.general.setString(outcome.transcript.text, forType: .string)
         transcriptKept = true
         resultView.flashCopied()
     }
 
     @objc func saveTranscript() {
-        guard case .done(_, let text) = state else { return }
+        guard case .done(_, let outcome) = state else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
         if let sourceURL {
@@ -153,7 +155,7 @@ final class VoceController: NSViewController {
         }
         guard panel.runModal() == .OK, let destination = panel.url else { return }
         do {
-            try text.write(to: destination, atomically: true, encoding: .utf8)
+            try outcome.transcript.text.write(to: destination, atomically: true, encoding: .utf8)
             transcriptKept = true
             NSWorkspace.shared.activateFileViewerSelecting([destination])
         } catch {
@@ -230,9 +232,12 @@ final class VoceController: NSViewController {
             view.window?.makeFirstResponder(idleView.focusTarget)
         case .working:
             view.window?.makeFirstResponder(workingView)
-        case .done(let file, let text):
+        case .done(let file, let outcome):
             transcriptKept = false
-            resultView.show(file: file, text: text)
+            let words = outcome.transcript.text.split(whereSeparator: \.isWhitespace).count
+            let seconds = Int(outcome.durationSeconds)
+            let caption = "\(words) \(words == 1 ? "parola" : "parole") · \(outcome.model.displayName) · \(seconds / 60):\(String(format: "%02d", seconds % 60))"
+            resultView.show(file: file, text: outcome.transcript.text, caption: caption)
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
     }
@@ -249,7 +254,7 @@ extension VoceController {
             render(.idle)
             idleView.show(message: "registrazione.m4a: Non riesco a raggiungere il servizio. Controlla la connessione e riprova.", actionTitle: "Riprova") {}
         case "working", "waiting":
-            workingView.begin(file: "Intervista con Giulia Montecchi.m4a")
+            workingView.begin(file: "Intervista con Giulia Montecchi.m4a", model: .maiTranscribe2)
             render(.working)
             if name == "working" {
                 workingView.update(status: "Trascrivo la parte 2 di 5", progress: 0.42)
@@ -258,7 +263,12 @@ extension VoceController {
             }
         case "result":
             let paragraph = "Buongiorno a tutti e grazie di essere qui. Oggi parleremo di come costruire una piccola app per il Mac che trascrive l'audio in italiano, partendo da un file registrato con il telefono. La parte più difficile non è il riconoscimento, ma tutto quello che c'è intorno: file lunghi, rete instabile, errori comprensibili. "
-            render(.done(file: "Intervista con Giulia Montecchi.m4a", text: String(repeating: paragraph, count: 6)))
+            let preview = TranscriptionOutcome(
+                transcript: RichTranscript(segments: [TranscriptSegment(speaker: 1, text: String(repeating: paragraph, count: 6), start: 0)]),
+                model: .maiTranscribe2,
+                durationSeconds: 3720
+            )
+            render(.done(file: "Intervista con Giulia Montecchi.m4a", outcome: preview))
         default:
             break
         }

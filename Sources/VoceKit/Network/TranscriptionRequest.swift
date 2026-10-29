@@ -2,34 +2,37 @@ import Foundation
 
 /// Builds the upload body. A glossary needs JSON, because OpenRouter ignores `prompt`
 /// on a multipart request and only forwards `provider.options`.
+/// `model` decides the glossary route, the diarization flags and the response shape.
 enum TranscriptionRequest {
     /// Writes the body and returns the Content-Type to send with it.
-    static func write(audio fileURL: URL, glossaryPrompt: String?, to destination: URL) throws -> String {
-        guard let glossaryPrompt, !glossaryPrompt.isEmpty else {
+    /// Empty `terms` stay multipart (small, streams from disk); otherwise JSON.
+    static func write(audio fileURL: URL, terms: [String], model: TranscriptionModel, to destination: URL) throws -> String {
+        guard !terms.isEmpty || model.wantsVerboseJSON else {
             let multipart = MultipartBody()
             try multipart.write(
-                fields: [("model", TranscriptionConfig.model), ("language", TranscriptionConfig.language)],
+                fields: [("model", model.rawValue), ("language", TranscriptionConfig.language)],
                 file: fileURL,
                 to: destination
             )
             return multipart.contentType
         }
 
-        let payload: [String: Any] = [
-            "model": TranscriptionConfig.model,
+        var payload: [String: Any] = [
+            "model": model.rawValue,
             "language": TranscriptionConfig.language,
             "input_audio": [
                 "data": try Data(contentsOf: fileURL).base64EncodedString(),
                 "format": format(for: fileURL)
-            ],
-            "provider": [
-                "options": [
-                    TranscriptionConfig.glossaryProvider: [
-                        TranscriptionConfig.glossaryField: glossaryPrompt
-                    ]
-                ]
             ]
         ]
+        if model.wantsVerboseJSON {
+            payload["response_format"] = "verbose_json"
+            payload["timestamp_granularities"] = ["word"]
+        }
+        let options = model.providerOptions(glossaryTerms: terms)
+        if !options.isEmpty {
+            payload["provider"] = ["options": options]
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         try data.write(to: destination, options: .atomic)
         return "application/json"

@@ -19,11 +19,33 @@ struct OpenRouterClientTests {
     }
 
     @Test func parsesJSONTranscript() throws {
-        #expect(try OpenRouterClient.parse(data: Data(#"{"text":"ciao"}"#.utf8), response: response(200)) == "ciao")
+        #expect(try OpenRouterClient.parse(data: Data(#"{"text":"ciao"}"#.utf8), response: response(200))
+            == [TranscriptSegment(speaker: nil, text: "ciao", start: 0)])
+    }
+
+    @Test func parsesVerboseSegments() throws {
+        let body = Data(#"{"segments":[{"text":"ciao","start":1.5,"speaker":"SPEAKER_01"},{"text":"mondo"}]}"#.utf8)
+        let segments = try OpenRouterClient.parse(data: body, response: response(200))
+        #expect(segments.count == 2)
+        #expect(segments[0] == TranscriptSegment(speaker: 1, text: "ciao", start: 1.5))
+        #expect(segments[1].speaker == nil && segments[1].start == 0)
+    }
+
+    @Test func segmentFieldsAreTolerant() throws {
+        #expect(try OpenRouterClient.parse(data: Data(#"{"segments":[]}"#.utf8), response: response(200)) == [])
+        #expect(try OpenRouterClient.parse(data: Data(#"{"segments":[{"nope":1}]}"#.utf8), response: response(200)) == [])
+    }
+
+    @Test func stringSpeakerIndexes() {
+        #expect(TranscriptSegment.speakerIndex(from: "SPEAKER_01") == 1)
+        #expect(TranscriptSegment.speakerIndex(from: "1") == 1)
+        #expect(TranscriptSegment.speakerIndex(from: nil) == nil)
+        #expect(TranscriptSegment.speakerIndex(from: "abc") == nil)
     }
 
     @Test func fallsBackToPlainText() throws {
-        #expect(try OpenRouterClient.parse(data: Data("ciao".utf8), response: response(200)) == "ciao")
+        #expect(try OpenRouterClient.parse(data: Data("ciao".utf8), response: response(200))
+            == [TranscriptSegment(speaker: nil, text: "ciao", start: 0)])
     }
 
     @Test func emptyBodyIsEmptyTranscript() {
@@ -63,7 +85,7 @@ struct OpenRouterClientTests {
         try Data("x".utf8).write(to: audio)
         defer { try? FileManager.default.removeItem(at: audio) }
 
-        #expect(try await client.transcribe(audio) == "ok")
+        #expect(try await client.transcribe(audio) == [TranscriptSegment(speaker: nil, text: "ok", start: 0)])
         #expect(StubProtocol.requestCount == 2)
     }
 

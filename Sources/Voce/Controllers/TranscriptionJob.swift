@@ -11,7 +11,7 @@ final class TranscriptionJob {
         case progress(Double, String)
         /// Waiting on the network; the bar can't show real progress.
         case waiting(String)
-        case finished(String)
+        case finished(TranscriptionOutcome)
         case failed(Error)
     }
 
@@ -24,7 +24,7 @@ final class TranscriptionJob {
         task = Task.detached { [weak self] in
             let event: Event
             do {
-                let text = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
+                let outcome = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
                     Task { @MainActor in
                         guard let self, self.generation == id else { return }
                         handler(.progress(value, status))
@@ -35,7 +35,7 @@ final class TranscriptionJob {
                         handler(.waiting(status))
                     }
                 })
-                event = .finished(text)
+                event = .finished(outcome)
             } catch is CancellationError {
                 return
             } catch {

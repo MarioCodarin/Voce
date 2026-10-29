@@ -18,11 +18,12 @@ public enum CLI {
         Task.detached {
             defer { group.leave() }
             do {
-                let text = try await Transcriber().transcribe(fileURL: arguments.input) { progress, status in
+                let outcome = try await Transcriber().transcribe(fileURL: arguments.input) { progress, status in
                     let line = String(format: "[%3.0f%%] %@\n", progress * 100, status)
                     FileHandle.standardError.write(Data(line.utf8))
                 }
-                try text.write(to: arguments.output, atomically: true, encoding: .utf8)
+                try outcome.transcript.text.write(to: arguments.output, atomically: true, encoding: .utf8)
+                FileHandle.standardError.write(Data("Scritto \(arguments.output.path) (\(outcome.model.displayName))\n".utf8))
                 FileHandle.standardError.write(Data("Scritto \(arguments.output.path)\n".utf8))
             } catch {
                 fputs("errore: \(error.localizedDescription)\n", stderr)

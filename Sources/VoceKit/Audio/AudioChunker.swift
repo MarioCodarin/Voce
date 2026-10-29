@@ -8,20 +8,20 @@ enum AudioChunker {
     /// Adjacent slices share this much audio so no word is lost at a cut.
     static let overlapSeconds: Double = 2
 
-    /// Time ranges covering `duration`, each at most `maxChunkSeconds` long.
-    static func ranges(duration: Double) -> [(start: Double, end: Double)] {
+    /// Time ranges covering `duration`. `chunk` caps slice length; `overlap` is shared with the next slice.
+    static func ranges(duration: Double, chunk: Double = maxChunkSeconds, overlap: Double = overlapSeconds) -> [(start: Double, end: Double)] {
         guard duration > 0 else { return [] }
-        if duration <= maxChunkSeconds {
+        if duration <= chunk {
             return [(0, duration)]
         }
 
         var result: [(start: Double, end: Double)] = []
         var start = 0.0
         while start < duration {
-            let end = min(start + maxChunkSeconds, duration)
+            let end = min(start + chunk, duration)
             result.append((start, end))
             if end >= duration { break }
-            start = end - overlapSeconds
+            start = end - overlap
         }
         return result
     }
@@ -37,9 +37,9 @@ enum AudioChunker {
     }
 
     /// Returns `[url]` for short audio, otherwise M4A slices in a fresh temporary folder.
-    static func split(_ url: URL) async throws -> [URL] {
+    static func split(_ url: URL, chunk: Double = maxChunkSeconds, overlap: Double = overlapSeconds) async throws -> [URL] {
         let seconds = try await duration(of: url)
-        let slices = ranges(duration: seconds)
+        let slices = ranges(duration: seconds, chunk: chunk, overlap: overlap)
         if slices.count == 1 {
             return [url]
         }

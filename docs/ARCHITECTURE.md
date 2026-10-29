@@ -14,7 +14,12 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 
 | Simbolo | Uso |
 | --- | --- |
-| `Transcriber().transcribe(fileURL:onProgress:)` | trascrive un file, `async throws -> String` |
+| `Transcriber().transcribe(fileURL:onProgress:)` | trascrive un file, `async throws -> TranscriptionOutcome` |
+| `TranscriptionOutcome` | testo (`RichTranscript`), modello usato, durata in secondi |
+| `TranscriptionModel` | registro chiuso dei modelli: id OpenRouter, prezzi/note, fette, glossario, diarizzazione |
+| `ModelStore` | modello e pulizia scelti in Impostazioni (UserDefaults, con predefiniti sicuri) |
+| `TranscriptSegment` / `RichTranscript` | turni con parlante + testo pronto per copia/salvataggio |
+| `CleanupPass` | punteggiatura e maiuscole via chat, mai a rischio: scarta tutto se cambia le parole |
 | `TranscribeError` | errori con messaggio italiano (`LocalizedError`) |
 | `AudioFormat.headline`, `.isSupported(extension:)` | formati accettati |
 | `CLI.run(args:)` | esegue `--transcribe`; false se l'app deve aprirsi |
@@ -25,18 +30,19 @@ Tutto il resto è `internal` e raggiungibile dai test con `@testable import`.
 ## Flusso di una trascrizione
 
 ```
-Transcriber.transcribe
+Transcriber.transcribe (modello = ModelStore.current)
  ├─ AudioFormat.isSupported            estensione valida?
- ├─ AudioChunker.split                 ≤ 5 min → il file stesso; altrimenti fette M4A (overlap 2 s)
+ ├─ AudioChunker.split                  fette per modello (MAI 10 min, Scribe 4 min…; overlap 2–3 s)
  └─ per ogni fetta
      ├─ AudioConverter.compactForUpload   mono 16 kHz: MP3 64k (ffmpeg) o WAV (afconvert)
-     ├─ OpenRouterClient.transcribe       multipart su disco; con glossario, JSON e initial_prompt
+     ├─ OpenRouterClient.transcribe       segmenti con parlante (verbose_json) o testo
      │                                  retry con backoff su rete/429/5xx
      └─ (file temporanei rimossi)
- └─ TranscriptStitcher.stitch          unisce, scarta le parole ripetute al taglio
+ └─ TranscriptStitcher.stitchSegments  unisce, scarta le parole ripetute al taglio
+ └─ CleanupPass.polish (se attivo)    punteggiatura/maiuscole; scartato se cambia le parole
 ```
 
-Progresso: 0–10% preparazione; il resto è diviso in parti uguali tra le fette (30% conversione, 70% upload di ciascuna).
+Progresso: 0–10% preparazione; le fette condividono l'85% (30% conversione, 70% upload di ciascuna); ultimo 5% alla pulizia.
 
 ## Concorrenza e annullamento
 
@@ -57,5 +63,6 @@ Progresso: 0–10% preparazione; il resto è diviso in parti uguali tra le fette
 ## Come aggiungere…
 
 - **Un formato**: una riga in `AudioFormat.mimeTypes`.
-- **Un altro modello o lingua**: `TranscriptionConfig`.
+- **Un altro modello**: una voce in `TranscriptionModel` (id, fette, glossario, diarizzazione); la scelta in Impostazioni lo elenca da sola.
+- **Un'altra lingua**: `TranscriptionConfig.language`.
 - **Una nuova schermata**: una `NSView` in `Views/`, un caso in `VoceController.State`, un ramo in `render`.
