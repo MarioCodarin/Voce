@@ -21,10 +21,11 @@ enum CleanupPass {
         _ text: String,
         language: TranscriptionLanguage = .italian,
         speakerLabel: String = "Parlante",
+        apiKey: String? = nil,
         session: URLSession? = nil,
         onProgress: ChunkProgress? = nil
     ) async -> String {
-        let key = Secrets.openRouterKey
+        let key = apiKey ?? Secrets.openRouterKey
         guard !key.isEmpty, !text.isEmpty else { return text }
 
         let chunks = chunked(text, limit: TranscriptionConfig.cleanupChunkCharacters)

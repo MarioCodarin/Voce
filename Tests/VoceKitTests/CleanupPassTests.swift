@@ -67,25 +67,32 @@ struct CleanupPassTests {
 
     @Test func smallFixPassesThrough() async throws {
         CleanupStub.reset(status: 200, body: chatBody(content: "Ciao mondo.\n\nParlante 1: Andiamo."))
-        let polished = await CleanupPass.polish("ciao mondo parlante 1: andiamo", session: stubSession())
+        let polished = await CleanupPass.polish("ciao mondo parlante 1: andiamo", apiKey: "test", session: stubSession())
         #expect(polished == "Ciao mondo.\n\nParlante 1: Andiamo.")
     }
 
     @Test func driftDiscardsPolish() async throws {
         CleanupStub.reset(status: 200, body: chatBody(content: "uno due X quattro cinque Y sette Z"))
-        let polished = await CleanupPass.polish("uno due tre quattro cinque sei sette otto", session: stubSession())
+        let polished = await CleanupPass.polish("uno due tre quattro cinque sei sette otto", apiKey: "test", session: stubSession())
         #expect(polished == "uno due tre quattro cinque sei sette otto")
     }
 
     @Test func lostSpeakerLabelsDiscardPolish() async throws {
         CleanupStub.reset(status: 200, body: chatBody(content: "Ciao mondo. Andiamo."))
-        let polished = await CleanupPass.polish("ciao mondo parlante 1: andiamo", session: stubSession())
+        let polished = await CleanupPass.polish("ciao mondo parlante 1: andiamo", apiKey: "test", session: stubSession())
         #expect(polished == "ciao mondo parlante 1: andiamo")
+    }
+
+    @Test func missingKeySkipsTheNetwork() async {
+        CleanupStub.reset(status: 200, body: chatBody(content: "Ciao."))
+        let polished = await CleanupPass.polish("ciao", apiKey: "", session: stubSession())
+        #expect(polished == "ciao")
+        #expect(CleanupStub.requestBody == nil)
     }
 
     @Test func networkFailureKeepsOriginal() async throws {
         CleanupStub.reset(status: 500, body: Data("{}".utf8))
-        let polished = await CleanupPass.polish("ciao mondo", session: stubSession())
+        let polished = await CleanupPass.polish("ciao mondo", apiKey: "test", session: stubSession())
         #expect(polished == "ciao mondo")
     }
 
@@ -117,7 +124,7 @@ struct CleanupPassTests {
 
     @Test func requestShape() async throws {
         CleanupStub.reset(status: 200, body: chatBody(content: "ciao mondo"))
-        _ = await CleanupPass.polish("ciao mondo", session: stubSession())
+        _ = await CleanupPass.polish("ciao mondo", apiKey: "test", session: stubSession())
         let body = try #require(CleanupStub.requestBody)
         let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(object["model"] as? String == TranscriptionConfig.cleanupModel)
