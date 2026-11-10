@@ -7,7 +7,7 @@ import VoceKit
 /// dropped, so a cancelled or replaced job can never touch the UI again.
 @MainActor
 final class TranscriptionJob {
-    enum Event {
+    enum Event: Sendable {
         case progress(Double, TranscriptionStatus)
         case finished(TranscriptionOutcome)
         case failed(Error)
@@ -22,11 +22,18 @@ final class TranscriptionJob {
         language: TranscriptionLanguage,
         speakerLabel: String,
         cleanupEnabled: Bool,
-        handler: @escaping @MainActor (Event) -> Void
+        handler: @escaping @MainActor @Sendable (Event) -> Void
     ) {
         cancel()
         let id = generation
-        task = Task.detached { [weak self] in
+        // A main-actor closure is the only bridge back to the UI. Capturing it (instead
+        // of `self`) in the detached task keeps the compiler's Sendable checks happy.
+        let deliver: @MainActor @Sendable (Event) -> Void = { [weak self] event in
+            guard let self, self.generation == id else { return }
+            handler(event)
+        }
+
+        task = Task.detached { [deliver] in
             let event: Event
             do {
                 let transcriber = Transcriber(
@@ -37,8 +44,7 @@ final class TranscriptionJob {
                 )
                 let outcome = try await transcriber.transcribe(fileURL: url) { value, status in
                     Task { @MainActor in
-                        guard let self, self.generation == id else { return }
-                        handler(.progress(value, status))
+                        deliver(.progress(value, status))
                     }
                 }
                 event = .finished(outcome)
@@ -47,10 +53,7 @@ final class TranscriptionJob {
             } catch {
                 event = .failed(error)
             }
-            await MainActor.run {
-                guard let self, self.generation == id else { return }
-                handler(event)
-            }
+            await deliver(event)
         }
     }
 
