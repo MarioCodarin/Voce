@@ -1,6 +1,6 @@
 import AppKit
 
-/// The menu bar: app, File, Edit and Window menus with the usual shortcuts.
+/// The menu bar: app, File, Edit, View, Window and Help with the usual shortcuts.
 ///
 /// Voce-specific items have no target, so they travel the responder chain to `VoceController`.
 @MainActor
@@ -12,6 +12,7 @@ enum MainMenu {
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
         main.addItem(submenu(windowMenu()))
+        main.addItem(submenu(helpMenu()))
         return main
     }
 
@@ -22,41 +23,45 @@ enum MainMenu {
     }
 
     private static func appMenu() -> NSMenu {
-        let menu = NSMenu(title: "Voce")
-        menu.addItem(withTitle: "Informazioni su Voce", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let menu = NSMenu(title: Copy.appName)
+        menu.addItem(withTitle: Copy.menuAbout, action: #selector(AppDelegate.showAbout), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Impostazioni…", action: #selector(AppDelegate.showPreferences), keyEquivalent: ",")
+        menu.addItem(withTitle: Copy.settings + "…", action: #selector(AppDelegate.showPreferences), keyEquivalent: ",")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Nascondi Voce", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let others = menu.addItem(withTitle: "Nascondi altre", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        menu.addItem(withTitle: Copy.menuHide, action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let others = menu.addItem(withTitle: Copy.menuHideOthers, action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         others.keyEquivalentModifierMask = [.command, .option]
-        menu.addItem(withTitle: "Mostra tutte", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.menuShowAll, action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Esci da Voce", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: Copy.menuQuit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
     }
 
     private static func fileMenu() -> NSMenu {
-        let menu = NSMenu(title: "File")
-        menu.addItem(withTitle: "Apri audio…", action: #selector(VoceController.chooseFile), keyEquivalent: "o")
+        let menu = NSMenu(title: Copy.menuFile)
+        menu.addItem(withTitle: Copy.menuOpenAudio, action: #selector(VoceController.chooseFile), keyEquivalent: "o")
+        menu.addItem(.separator())
 
-        let copy = menu.addItem(withTitle: "Copia trascrizione", action: #selector(VoceController.copyTranscript), keyEquivalent: "c")
+        let copy = menu.addItem(withTitle: Copy.menuCopyTranscript, action: #selector(VoceController.copyTranscript), keyEquivalent: "c")
         copy.keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(withTitle: "Salva .txt…", action: #selector(VoceController.saveTranscript), keyEquivalent: "s")
+        menu.addItem(withTitle: Copy.menuSaveTranscript, action: #selector(VoceController.saveTranscript), keyEquivalent: "s")
+        menu.addItem(withTitle: Copy.menuExportSRT, action: #selector(VoceController.exportSRT), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.menuExportVTT, action: #selector(VoceController.exportVTT), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.menuRenameSpeakers, action: #selector(VoceController.renameSpeakers), keyEquivalent: "")
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Annulla trascrizione", action: #selector(VoceController.cancelWork), keyEquivalent: "\u{1b}")
-        menu.addItem(withTitle: "Nuova trascrizione", action: #selector(VoceController.newTranscription), keyEquivalent: "n")
+        menu.addItem(withTitle: Copy.menuNewTranscript, action: #selector(VoceController.newTranscription), keyEquivalent: "n")
+        menu.addItem(withTitle: Copy.menuCancelWork, action: #selector(VoceController.cancelWork), keyEquivalent: "\u{1b}")
         return menu
     }
 
     private static func editMenu() -> NSMenu {
-        let menu = NSMenu(title: "Modifica")
-        menu.addItem(withTitle: "Copia", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        menu.addItem(withTitle: "Seleziona tutto", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let menu = NSMenu(title: Copy.menuEdit)
+        menu.addItem(withTitle: Copy.copy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        menu.addItem(withTitle: Copy.t("Seleziona tutto", "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         menu.addItem(.separator())
         let find = menu.addItem(
-            withTitle: "Trova…",
+            withTitle: Copy.menuFind,
             action: #selector(NSResponder.performTextFinderAction(_:)),
             keyEquivalent: "f"
         )
@@ -65,17 +70,30 @@ enum MainMenu {
     }
 
     private static func viewMenu() -> NSMenu {
-        let menu = NSMenu(title: "Vista")
-        let full = menu.addItem(withTitle: "Schermo intero", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        let menu = NSMenu(title: Copy.menuView)
+        let full = menu.addItem(
+            withTitle: Copy.menuFullScreen,
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f"
+        )
         full.keyEquivalentModifierMask = [.command, .control]
         return menu
     }
 
     private static func windowMenu() -> NSMenu {
-        let menu = NSMenu(title: "Finestra")
-        menu.addItem(withTitle: "Riduci a icona", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        menu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: "Chiudi", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let menu = NSMenu(title: Copy.menuWindow)
+        menu.addItem(withTitle: Copy.menuMinimize, action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        menu.addItem(withTitle: Copy.menuZoom, action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.close, action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        return menu
+    }
+
+    private static func helpMenu() -> NSMenu {
+        let menu = NSMenu(title: Copy.menuHelp)
+        menu.addItem(withTitle: Copy.menuGuide, action: #selector(AppDelegate.openGuide), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.menuShowLog, action: #selector(AppDelegate.showLog), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: Copy.reportProblem, action: #selector(AppDelegate.reportProblem), keyEquivalent: "")
         return menu
     }
 }

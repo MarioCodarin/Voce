@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  package:
+    runs-on: macos-15
+    timeout-minutes: 20
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: ./scripts/package-app.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Voce.app
+          path: dist/Voce.app
+          if-no-files-found: error

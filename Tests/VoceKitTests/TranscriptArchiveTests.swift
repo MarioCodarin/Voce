@@ -1,0 +1,118 @@
+import Foundation
+import Testing
+@testable import VoceKit
+
+struct TranscriptArchiveTests {
+    private func makeArchive() throws -> (TranscriptArchive, URL) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voce-archive-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return (TranscriptArchive(directory: directory), directory)
+    }
+
+    private func record(
+        _ text: String,
+        date: Date = Date(),
+        speakers: [Int: String] = [:]
+    ) -> TranscriptRecord {
+        let outcome = TranscriptionOutcome(
+            transcript: RichTranscript(
+                segments: [
+                    TranscriptSegment(speaker: 1, text: "Ciao", start: 0),
+                    TranscriptSegment(speaker: 2, text: text, start: 3)
+                ]
+            ),
+            model: .maiTranscribe2,
+            durationSeconds: 60,
+            language: .italian,
+            speakerLabel: "Parlante",
+            createdAt: date
+        )
+        return TranscriptRecord(outcome: outcome, sourceName: "riunione.m4a", speakerNames: speakers)
+    }
+
+    @Test func savesListsAndLoads() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let older = record("vecchia", date: Date(timeIntervalSince1970: 1_000))
+        let newer = record("nuova", date: Date(timeIntervalSince1970: 2_000))
+        #expect(archive.save(older))
+        #expect(archive.save(newer))
+
+        let list = archive.list()
+        #expect(list.count == 2)
+        #expect(list.first?.id == newer.id)
+        #expect(list.first?.wordCount == 6)
+
+        let loaded = try #require(try archive.load(id: newer.id))
+        #expect(loaded.text.contains("nuova"))
+        #expect(loaded.sourceName == "riunione.m4a")
+        #expect(loaded.modelName == "MAI-Transcribe 2")
+    }
+
+    @Test func deletesOneAndClearsAll() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = record("uno")
+        let second = record("due")
+        archive.save(first)
+        archive.save(second)
+
+        archive.delete(id: first.id)
+        #expect(archive.list().map(\.id) == [second.id])
+        #expect(try archive.load(id: first.id) == nil)
+
+        archive.clear()
+        #expect(archive.list().isEmpty)
+    }
+
+    @Test func rebuildsADamagedIndex() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let saved = record("recuperabile")
+        archive.save(saved)
+        try Data("not json".utf8).write(to: archive.indexPath)
+
+        let list = archive.list()
+        #expect(list.map(\.id) == [saved.id])
+    }
+
+    @Test func capsTheNumberOfRecords() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        for index in 0..<(TranscriptArchive.maxRecords + 5) {
+            archive.save(record("record \(index)", date: Date(timeIntervalSince1970: Double(index))))
+        }
+        #expect(archive.list().count == TranscriptArchive.maxRecords)
+        #expect(archive.list().first?.wordCount == 7)
+    }
+
+    @Test func updatesSpeakerNames() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let saved = record("con nomi")
+        archive.save(saved)
+        archive.updateSpeakerNames(id: saved.id, names: [1: "Giulia", 2: "Luca"])
+
+        let loaded = try #require(try archive.load(id: saved.id))
+        #expect(loaded.namesBySpeaker == [1: "Giulia", 2: "Luca"])
+    }
+
+    @Test func filesAreOwnerOnly() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let saved = record("privato")
+        archive.save(saved)
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: directory.appendingPathComponent("\(saved.id.uuidString).json").path
+        )
+        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
+        #expect(permissions & 0o777 == 0o600)
+    }
+}

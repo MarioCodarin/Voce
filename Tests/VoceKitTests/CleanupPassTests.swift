@@ -89,6 +89,32 @@ struct CleanupPassTests {
         #expect(polished == "ciao mondo")
     }
 
+    @Test func englishPromptForbidsRewording() {
+        let prompt = CleanupPass.systemPrompt(language: .english, speakerLabel: "Speaker")
+        #expect(prompt.contains("Do NOT change the words"))
+        #expect(prompt.contains("'Speaker N:'"))
+    }
+
+    @Test func longTextIsSplitIntoBoundedChunks() {
+        let paragraph = String(repeating: "parola ", count: 60)
+        let text = (0..<10).map { _ in paragraph }.joined(separator: "\n\n")
+        let chunks = CleanupPass.chunked(text, limit: 500)
+        #expect(chunks.count > 1)
+        #expect(chunks.allSatisfy { $0.count <= 500 })
+        #expect(chunks.joined(separator: " ").contains("parola"))
+    }
+
+    @Test func hugeParagraphIsHardWrapped() {
+        let text = String(repeating: "parola ", count: 500)
+        let chunks = CleanupPass.chunked(text, limit: 200)
+        #expect(chunks.count > 1)
+        #expect(chunks.allSatisfy { $0.count <= 200 })
+    }
+
+    @Test func shortTextStaysOneChunk() {
+        #expect(CleanupPass.chunked("ciao mondo", limit: 100) == ["ciao mondo"])
+    }
+
     @Test func requestShape() async throws {
         CleanupStub.reset(status: 200, body: chatBody(content: "ciao mondo"))
         _ = await CleanupPass.polish("ciao mondo", session: stubSession())

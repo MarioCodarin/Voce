@@ -2,19 +2,6 @@ import Foundation
 import Testing
 @testable import VoceKit
 
-private func silentWAV(seconds: Int = 1) -> URL {
-    let rate = 16000, bytes = rate * seconds * 2
-    var d = Data()
-    d += "RIFF".utf8; d += withUnsafeBytes(of: UInt32(36 + bytes).littleEndian, Array.init)
-    d += "WAVEfmt ".utf8; d += withUnsafeBytes(of: UInt32(16).littleEndian, Array.init)
-    d += withUnsafeBytes(of: UInt16(1).littleEndian, Array.init); d += withUnsafeBytes(of: UInt16(1).littleEndian, Array.init)
-    d += withUnsafeBytes(of: UInt32(rate).littleEndian, Array.init); d += withUnsafeBytes(of: UInt32(rate * 2).littleEndian, Array.init)
-    d += withUnsafeBytes(of: UInt16(2).littleEndian, Array.init); d += withUnsafeBytes(of: UInt16(16).littleEndian, Array.init)
-    d += "data".utf8; d += withUnsafeBytes(of: UInt32(bytes).littleEndian, Array.init)
-    d += Data(repeating: 0, count: bytes)
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("voce-t-\(UUID().uuidString).wav")
-    try! d.write(to: url); return url
-}
 
 /// Serves one canned transcript for every upload.
 private final class OutcomeStub: URLProtocol, @unchecked Sendable {

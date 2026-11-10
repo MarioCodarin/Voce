@@ -1,37 +1,15 @@
 import Foundation
 
-/// Joins the transcripts of consecutive chunks into one text.
+/// Joins the transcripts of consecutive chunks into one list of turns.
 ///
 /// Chunks overlap by a couple of seconds, so the end of one transcript often repeats at the
-/// start of the next. When that happens the repeat is dropped and the parts are joined with a
-/// space; otherwise they are separated by a blank line.
-///
-/// `stitchSegments` is the speaker-aware twin: same seam logic, but a repeated
-/// passage only merges when both sides share the speaker (untagged counts as
-/// sharing with untagged); otherwise the boundary stays a paragraph break.
+/// start of the next. When that happens the repeat is dropped and the two turns merge, but only
+/// when both sides share the speaker (untagged counts as sharing with untagged).
 enum TranscriptStitcher {
     /// Longest repeat (in words) we look for at a seam.
     private static let maxOverlapWords = 20
     /// Shorter matches are too likely to be coincidence ("e il", "di un").
     private static let minOverlapWords = 2
-
-    static func stitch(_ parts: [String]) -> String {
-        let cleaned = parts
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard var result = cleaned.first else { return "" }
-
-        for next in cleaned.dropFirst() {
-            let overlap = overlapWordCount(tail: result, head: next)
-            if overlap > 0 {
-                let rest = dropLeadingWords(next, count: overlap)
-                result += rest.isEmpty ? "" : " " + rest
-            } else {
-                result += "\n\n" + next
-            }
-        }
-        return result
-    }
 
     static func stitchSegments(_ parts: [[TranscriptSegment]]) -> [TranscriptSegment] {
         var result: [TranscriptSegment] = []

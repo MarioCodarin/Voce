@@ -1,4 +1,5 @@
 import AppKit
+import VoceKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -7,10 +8,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// A file macOS asked us to open before the window existed.
     private var pendingFile: URL?
     private var preferences: PreferencesWindowController?
+    private var statusItem: StatusItemController?
     /// Set once the user agreed to close, so quitting afterwards doesn't ask a second time.
     private var closeConfirmed = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        VoceMaintenance.prepareForLaunch()
+
         if let image = Assets.icon() {
             NSApp.applicationIconImage = image
         }
@@ -18,19 +22,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let controller = VoceController()
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
+            contentRect: NSRect(origin: .zero, size: Layout.defaultWindow),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "Voce"
+        window.title = Copy.appName
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
         window.collectionBehavior = [.fullScreenPrimary]
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = Palette.bg
-        window.minSize = NSSize(width: 560, height: 420)
+        window.minSize = Layout.minimumWindow
         window.contentViewController = controller
         window.delegate = self
         if !window.setFrameUsingName("VoceMain") { window.center() }
@@ -38,16 +42,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Fade the window in rather than popping it; the background is already the final colour.
         window.alphaValue = Motion.reduced ? 1 : 0
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         if window.alphaValue < 1 {
             Motion.animate(Motion.quick) { window.animator().alphaValue = 1 }
         }
         self.window = window
         self.controller = controller
 
+        statusItem = StatusItemController(controller: controller, appDelegate: self)
+
+        NotificationCenter.default.addObserver(
+            forName: VoceSettings.didChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                NSApp.mainMenu = MainMenu.build()
+                self.statusItem?.setVisible(VoceSettings.menuBarEnabled)
+                self.statusItem?.refreshMenu()
+            }
+        }
+
+        let environment = ProcessInfo.processInfo.environment
+        let isCapturing = environment["VOCE_PREVIEW"] != nil || environment["VOCE_SNAPSHOT"] != nil
+
         #if DEBUG
-        if let preview = ProcessInfo.processInfo.environment["VOCE_PREVIEW"] { controller.debugPreview(preview) }
-        if let directory = ProcessInfo.processInfo.environment["VOCE_SNAPSHOT"] {
+        if let preview = environment["VOCE_PREVIEW"] { controller.debugPreview(preview) }
+        if let directory = environment["VOCE_SNAPSHOT"] {
             Snapshots.run(into: directory, window: window, controller: controller)
             exit(0)
         }
@@ -59,6 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             controller.open(file)
         }
         pendingFile = nil
+
+        // First run: the key is the one thing standing between the user and a transcript.
+        if !isCapturing, !Secrets.hasKey {
+            DispatchQueue.main.async { controller.presentOnboarding() }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -67,24 +94,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Closing the window quits the app, so confirm before throwing work away.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        let ok = controller?.confirmDiscard(action: "Chiudi") ?? true
+        let ok = controller?.confirmDiscard(action: Copy.closeAction) ?? true
         closeConfirmed = ok
         return ok
     }
 
-    /// Voce is a single-window app: closing it quits, even with Preferences still open.
+    /// Voce is a single-window app: closing it quits, even with Settings still open.
     func windowWillClose(_ notification: Notification) {
         if notification.object as? NSWindow === window { NSApp.terminate(nil) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !closeConfirmed, let controller else { return .terminateNow }
-        return controller.confirmDiscard(action: "Esci") ? .terminateNow : .terminateCancel
+        return controller.confirmDiscard(action: Copy.quitAction) ? .terminateNow : .terminateCancel
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showMainWindow(nil)
+        return true
+    }
+
+    // MARK: - Actions
+
+    @objc func showMainWindow(_ sender: Any?) {
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate()
     }
 
     @objc func showPreferences(_ sender: Any?) {
-        if preferences == nil { preferences = PreferencesWindowController() }
-        preferences?.showWindow(nil)
+        if preferences == nil {
+            preferences = PreferencesWindowController()
+            preferences?.showWindow(nil)
+        } else {
+            preferences?.showWindow(nil)
+        }
+        preferences?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+    }
+
+    @objc func showAbout(_ sender: Any?) {
+        let credits = NSAttributedString(
+            string: Copy.aboutCredits,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: Copy.appName,
+            .applicationVersion: VoceVersion.marketing,
+            .version: VoceVersion.build,
+            .credits: credits
+        ])
+        NSApp.activate()
+    }
+
+    @objc func openGuide(_ sender: Any?) {
+        NSWorkspace.shared.open(VoceLinks.repository)
+    }
+
+    @objc func showLog(_ sender: Any?) {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: Log.logFileURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([Log.logFileURL])
+        } else {
+            let folder = Log.logFileURL.deletingLastPathComponent()
+            try? manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            NSWorkspace.shared.open(folder)
+        }
+    }
+
+    @objc func reportProblem(_ sender: Any?) {
+        NSWorkspace.shared.open(VoceLinks.issues)
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {

@@ -1,106 +1,205 @@
+import AVFoundation
 import Foundation
 
-/// Turns an audio file into Italian text: split, shrink, upload each chunk, stitch.
-/// The model, chunking and cleanup flag are snapshotted at init, so saving
-/// Impostazioni mid-job never changes a running transcription.
-///
-/// The finished job: rendered transcript, the model that made it, source length.
+/// Turns an audio file into text: slice, compact, upload each slice, stitch, optionally polish.
+/// The model, language and cleanup flag are snapshotted at init, so changing Settings
+/// mid-job never changes a running transcription.
 public struct TranscriptionOutcome: Sendable {
     public var transcript: RichTranscript
     public var model: TranscriptionModel
     public var durationSeconds: Double
+    public var language: TranscriptionLanguage
+    public var speakerLabel: String
+    public var createdAt: Date
 
-    public init(transcript: RichTranscript, model: TranscriptionModel, durationSeconds: Double) {
+    public init(
+        transcript: RichTranscript,
+        model: TranscriptionModel,
+        durationSeconds: Double,
+        language: TranscriptionLanguage = .italian,
+        speakerLabel: String = "Parlante",
+        createdAt: Date = Date()
+    ) {
         self.transcript = transcript
         self.model = model
         self.durationSeconds = durationSeconds
+        self.language = language
+        self.speakerLabel = speakerLabel
+        self.createdAt = createdAt
+    }
+
+    /// Number of words in the rendered transcript.
+    public var wordCount: Int {
+        transcript.text.split(whereSeparator: \.isWhitespace).count
     }
 }
 
 public struct Transcriber: Sendable {
-    /// Called with overall progress (0...1) and a short status line, from any thread.
-    public typealias Progress = @Sendable (Double, String) -> Void
-    /// Called with a status line while waiting on the network, where progress can't be measured.
-    public typealias Waiting = @Sendable (String) -> Void
+    /// Overall progress (0...1) and the current stage, from any thread.
+    public typealias Progress = @Sendable (Double, TranscriptionStatus) -> Void
 
     private let client: OpenRouterClient
     private let model: TranscriptionModel
-    /// Captured at init: tests pin it without touching the shared store.
+    private let language: TranscriptionLanguage
+    private let speakerLabel: String
     private let cleanupEnabled: Bool
 
-    public init(model: TranscriptionModel = ModelStore.current) {
+    public init(
+        model: TranscriptionModel = VoceSettings.model,
+        language: TranscriptionLanguage = VoceSettings.language,
+        speakerLabel: String? = nil,
+        cleanupEnabled: Bool = VoceSettings.cleanupEnabled
+    ) {
         self.model = model
-        self.cleanupEnabled = ModelStore.cleanupEnabled
-        self.client = OpenRouterClient(model: model, glossaryTerms: Glossary.terms)
+        self.language = language
+        self.speakerLabel = speakerLabel ?? language.speakerLabel(for: VoceSettings.interfaceLanguage)
+        self.cleanupEnabled = cleanupEnabled
+        self.client = OpenRouterClient(
+            model: model,
+            glossaryTerms: Glossary.terms,
+            language: language
+        )
     }
 
-    init(client: OpenRouterClient, model: TranscriptionModel, cleanupEnabled: Bool = ModelStore.cleanupEnabled) {
+    init(
+        client: OpenRouterClient,
+        model: TranscriptionModel,
+        language: TranscriptionLanguage = .italian,
+        speakerLabel: String = "Parlante",
+        cleanupEnabled: Bool = false
+    ) {
         self.client = client
         self.model = model
+        self.language = language
+        self.speakerLabel = speakerLabel
         self.cleanupEnabled = cleanupEnabled
     }
 
-    public func transcribe(
-        fileURL: URL,
-        onProgress: @escaping Progress,
-        onWaiting: @escaping Waiting = { _ in }
-    ) async throws -> TranscriptionOutcome {
+    public func transcribe(fileURL: URL, onProgress: @escaping Progress) async throws -> TranscriptionOutcome {
+        let started = Date()
         guard AudioFormat.isSupported(extension: fileURL.pathExtension) else {
+            Log.error(.transcription, "unsupported format .\(fileURL.pathExtension.lowercased())")
             throw TranscribeError.unsupportedFormat
         }
-
         try client.validateKey()
 
-        onProgress(0.02, "In ascolto…")
-        // Duration is best-effort metadata for the result caption, never fatal.
+        Log.info(.transcription, "start model=\(model.rawValue) lang=\(language.rawValue) cleanup=\(cleanupEnabled)")
+        onProgress(0.02, .listening)
+
+        // Duration is best-effort metadata, never fatal.
         let durationSeconds = (try? await AudioChunker.duration(of: fileURL)) ?? 0
-        let chunks = try await AudioChunker.split(fileURL, chunk: model.chunkSeconds, overlap: model.overlapSeconds)
-        defer { AudioChunker.discard(chunks, original: fileURL) }
+        let slices = AudioChunker.ranges(
+            duration: durationSeconds,
+            chunk: model.chunkSeconds,
+            overlap: model.overlapSeconds
+        )
+        guard !slices.isEmpty else {
+            Log.error(.transcription, "no audio slices (duration=\(durationSeconds))")
+            throw TranscribeError.unreadableAudio
+        }
+        Log.info(.transcription, String(
+            format: "plan duration=%.1fs chunks=%d chunk=%.0fs overlap=%.0fs",
+            durationSeconds, slices.count, model.chunkSeconds, model.overlapSeconds
+        ))
 
-        // Splitting takes the first 10%; chunks share the next 85%; the last
-        // 5% belongs to the cleanup pass (Task 6) — or to the finish line.
-        let splitShare = 0.1
-        let chunkShare = 0.85 / Double(chunks.count)
-
-        var parts: [[TranscriptSegment]] = []
-        var label = "Trascrivo…"
-        for (index, chunk) in chunks.enumerated() {
-            try Task.checkCancellation()
-            let base = splitShare + Double(index) * chunkShare
-            label = chunks.count == 1
-                ? "Trascrivo…"
-                : "Trascrivo il pezzo \(index + 1) di \(chunks.count)…"
-            onProgress(base, label)
-
-            let compact = try await AudioConverter.compactForUpload(chunk)
-            defer { TempFiles.remove(compact) }
-            onProgress(base + chunkShare * 0.3, label)
-
-            onWaiting(chunks.count == 1 ? "Invio e trascrizione…" : "Invio il pezzo \(index + 1) di \(chunks.count)…")
-            parts.append(try await client.transcribe(compact) { attempt in
-                onWaiting("Nuovo tentativo (\(attempt) di \(TranscriptionConfig.maxAttempts))…")
-            })
-            onProgress(base + chunkShare, label)
+        let workspace = try TempFiles.makeJobDirectory()
+        defer {
+            TempFiles.remove(workspace)
+            Log.debug(.audio, "workspace removed")
         }
 
-        var transcript = RichTranscript(segments: TranscriptStitcher.stitchSegments(parts))
-        guard !transcript.text.isEmpty else { throw TranscribeError.emptyTranscript }
+        // Prepare 5%; chunks share 85%; cleanup gets 10%.
+        let prepareShare = 0.05
+        let chunkShare = 0.85 / Double(slices.count)
+        let asset = AVURLAsset(url: fileURL)
+        var parts: [[TranscriptSegment]] = []
+
+        for (index, slice) in slices.enumerated() {
+            try Task.checkCancellation()
+            let base = prepareShare + Double(index) * chunkShare
+            onProgress(base, .chunk(index: index + 1, total: slices.count))
+
+            // Export just this slice, use it, delete it: peak disk use is one slice, not the whole file.
+            let source: URL
+            if slices.count == 1 {
+                source = fileURL
+            } else {
+                source = workspace.appendingPathComponent(String(format: "slice-%03d.m4a", index))
+                let exportStart = Date()
+                try await AudioChunker.export(asset: asset, start: slice.start, end: slice.end, to: source)
+                Log.debug(.audio, String(
+                    format: "slice %d/%d exported %.1fs-%.1fs in %.0fms",
+                    index + 1, slices.count, slice.start, slice.end,
+                    Date().timeIntervalSince(exportStart) * 1000
+                ))
+            }
+
+            let compact = try await AudioConverter.compactForUpload(source, in: workspace)
+            onProgress(base + chunkShare * 0.25, .chunk(index: index + 1, total: slices.count))
+
+            let bytes = TempFiles.size(of: compact)
+            Log.info(.audio, "chunk \(index + 1)/\(slices.count) ready bytes=\(bytes)")
+
+            onProgress(base + chunkShare * 0.3, .uploading(index: index + 1, total: slices.count))
+            let segments = try await client.transcribe(compact) { attempt in
+                onProgress(base + chunkShare * 0.3, .retrying(attempt: attempt, total: TranscriptionConfig.maxAttempts))
+            }
+
+            // Chunk-local timestamps become global so SRT/VTT are correct.
+            parts.append(segments.map { segment in
+                var copy = segment
+                copy.start += slice.start
+                return copy
+            })
+
+            if compact != source { TempFiles.remove(compact) }
+            if source != fileURL { TempFiles.remove(source) }
+            onProgress(base + chunkShare, .chunk(index: index + 1, total: slices.count))
+        }
+
+        var transcript = RichTranscript(
+            segments: TranscriptStitcher.stitchSegments(parts),
+            label: speakerLabel
+        )
+        guard !transcript.text.isEmpty else {
+            Log.error(.transcription, "empty transcript")
+            throw TranscribeError.emptyTranscript
+        }
+        Log.info(.transcription, "transcribed words=\(transcript.wordCount) chars=\(transcript.text.count)")
 
         if cleanupEnabled {
-            onProgress(0.95, label)
-            onWaiting("Controllo lo stile…")
+            onProgress(0.9, .polishing(index: 1, total: 1))
             try Task.checkCancellation()
-            let polished = await CleanupPass.polish(transcript.text)
+            let polished = await CleanupPass.polish(
+                transcript.text,
+                language: language,
+                speakerLabel: speakerLabel,
+                onProgress: { index, total in
+                    // The last 10% is the cleanup pass; split it across its chunks.
+                    let share = total > 0 ? Double(index) / Double(total) : 0
+                    onProgress(0.9 + 0.09 * share, .polishing(index: index, total: total))
+                }
+            )
             try Task.checkCancellation()
-            if polished == transcript.text {
-                onWaiting("stile originale conservato")
-            } else {
-                // Segments stay pre-polish; the UI renders turns from the text,
-                // whose Parlante labels the cleanup prompt preserves.
+            if polished != transcript.text {
                 transcript.text = polished
+                Log.info(.transcription, "cleanup accepted chars=\(polished.count)")
+            } else {
+                Log.info(.transcription, "cleanup skipped or rejected")
             }
         }
-        onProgress(1.0, label)
-        return TranscriptionOutcome(transcript: transcript, model: model, durationSeconds: durationSeconds)
+
+        onProgress(1.0, .finished)
+        Log.info(.transcription, String(
+            format: "done in %.1fs words=%d",
+            Date().timeIntervalSince(started), transcript.wordCount
+        ))
+        return TranscriptionOutcome(
+            transcript: transcript,
+            model: model,
+            durationSeconds: durationSeconds,
+            language: language,
+            speakerLabel: speakerLabel
+        )
     }
 }

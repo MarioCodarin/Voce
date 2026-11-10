@@ -2,14 +2,18 @@ import Foundation
 
 /// Words and names the model should prefer.
 ///
-/// The copy that ships with the app is `Resources/glossary.txt`. A file at
-/// `~/.config/voce/glossary.txt` overrides it after Impostazioni saves.
+/// The copy that ships with the app is `Resources/glossary.txt` — neutral examples only.
+/// A file at `~/.config/voce/glossary.txt` overrides it after the user saves their own list.
+/// Glossaries are personal data: they stay on this Mac and are only sent to the model
+/// as part of the transcription request.
 public enum Glossary {
-    static let file = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/voce/glossary.txt")
+    public static let configDirectory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/voce", isDirectory: true)
 
-    /// Terms past this length are left off the hint. One term longer than the cap is truncated.
-    static let maxCharacters = 12000
+    public static var file: URL { configDirectory.appendingPathComponent("glossary.txt") }
+
+    /// Safety cap so a pasted file can never create a huge request.
+    static let maxTerms = 2000
 
     /// Result of reading the glossary file. A missing file is not a failed read.
     public enum Read: Equatable {
@@ -19,7 +23,7 @@ public enum Glossary {
     }
 
     /// The glossary shipped inside the app, or nil when this process has no resource bundle.
-    static func bundledText() -> String? {
+    public static func bundledText() -> String? {
         let bundled = Bundle.module.url(forResource: "glossary", withExtension: "txt", subdirectory: "Resources")
             ?? Bundle.module.url(forResource: "glossary", withExtension: "txt")
             ?? Bundle.main.url(forResource: "glossary", withExtension: "txt")
@@ -46,8 +50,15 @@ public enum Glossary {
         return ""
     }
 
-    /// The glossary in effect, as terms. Empty when no glossary is available.
-    static var terms: [String] { terms(in: text) }
+    /// The glossary in effect, as unique terms. Capped for safety.
+    static var terms: [String] {
+        let all = terms(in: text)
+        if all.count > maxTerms {
+            Log.warning(.settings, "glossary truncated from \(all.count) to \(maxTerms) terms")
+            return Array(all.prefix(maxTerms))
+        }
+        return all
+    }
 
     /// Saves `text` as one term per line. An empty glossary removes the file.
     @discardableResult
@@ -60,7 +71,11 @@ public enum Glossary {
                 }
                 return true
             }
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
             try Data(normalized.utf8).write(to: file, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
             return true
@@ -106,21 +121,5 @@ public enum Glossary {
         }
         while lines.last?.isEmpty == true { lines.removeLast() }
         return lines.joined(separator: "\n")
-    }
-
-    /// Comma-separated terms that fit in `maxCharacters`. A first term longer than the cap is truncated.
-    static func initialPrompt(from text: String) -> String? {
-        var chosen: [String] = []
-        var count = 0
-        for term in terms(in: text) {
-            let extra = term.count + (chosen.isEmpty ? 0 : 2)
-            if count + extra > maxCharacters { break }
-            chosen.append(term)
-            count += extra
-        }
-        if chosen.isEmpty, let first = terms(in: text).first, !first.isEmpty {
-            return String(first.prefix(maxCharacters))
-        }
-        return chosen.isEmpty ? nil : chosen.joined(separator: ", ")
     }
 }

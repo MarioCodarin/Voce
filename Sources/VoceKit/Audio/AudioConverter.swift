@@ -3,29 +3,38 @@ import Foundation
 /// Shrinks audio to a small mono file before upload.
 ///
 /// Uses ffmpeg (MP3, 64 kbit/s) when installed, otherwise the system `afconvert` (16 kHz WAV).
+/// The converter path is resolved once, not on every chunk.
 enum AudioConverter {
-    /// Returns a new temporary file; the caller deletes it.
-    static func compactForUpload(_ url: URL) async throws -> URL {
-        if let ffmpeg = ffmpegURL() {
-            let out = TempFiles.url(extension: "mp3")
+    /// Returns a new temporary file; the caller deletes it (or deletes the whole job folder).
+    static func compactForUpload(_ url: URL, in directory: URL) async throws -> URL {
+        if let ffmpeg = ffmpegURL {
+            let out = directory.appendingPathComponent("compact-\(UUID().uuidString).mp3")
             try await run(ffmpeg, [
-                "-y", "-hide_banner", "-loglevel", "error",
-                "-i", url.path, "-ac", "1", "-ar", "16000", "-b:a", "64k", out.path
+                "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+                "-i", url.path, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", out.path
             ])
+            Log.debug(.audio, "compacted with ffmpeg bytes=\(TempFiles.size(of: out))")
             return out
         }
-        let out = TempFiles.url(extension: "wav")
+        let out = directory.appendingPathComponent("compact-\(UUID().uuidString).wav")
         try await run(URL(fileURLWithPath: "/usr/bin/afconvert"), [
             "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", url.path, out.path
         ])
+        Log.debug(.audio, "compacted with afconvert bytes=\(TempFiles.size(of: out))")
         return out
     }
 
-    private static func ffmpegURL() -> URL? {
-        ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
-            .map { URL(fileURLWithPath: $0) }
-            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
-    }
+    /// Resolved once per process. `ffmpeg` is optional; afconvert ships with macOS.
+    private static let ffmpegURL: URL? = [
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/bin/ffmpeg"
+    ]
+    .map { URL(fileURLWithPath: $0) }
+    .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+
+    /// True when ffmpeg is available (smaller uploads, faster conversion).
+    static var hasFFmpeg: Bool { ffmpegURL != nil }
 
     /// Runs a tool without blocking a cooperative thread; cancelling the task terminates it.
     private static func run(_ executable: URL, _ arguments: [String]) async throws {

@@ -1,106 +1,198 @@
 # Voce
 
-Piccola app macOS per trascrivere audio in italiano.
+**Audio to clean, speaker-aware text on macOS.** Drop a file, get a transcript with punctuation, speaker turns, subtitle export and a private local history.
 
-Usa `microsoft/mai-transcribe-2` su OpenRouter (italiano, ~$0,16 a riunione di 90 minuti). Trascina un file, aspetta, copia o salva il testo.
+Voce is a small native AppKit app built with Swift 6. It uses your own [OpenRouter](https://openrouter.ai) key and a transcription model of your choice. No account, no telemetry, no bundled secret.
 
-## Funzioni
+[![CI](https://github.com/MarioCodarin/Voce/actions/workflows/ci.yml/badge.svg)](https://github.com/MarioCodarin/Voce/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- Trascina un audio nella finestra, oppure clicca / ⌘O per sceglierlo (m4a, mp3, wav, flac, aac, mp4, ogg, webm).
-- File lunghi vengono spezzati e ricuciti; le parole ripetute nei punti di taglio vengono eliminate.
-- Riconosce chi parla ("Parlante 1:", "Parlante 2:") e sistema punteggiatura e maiuscole a fine lavoro.
-- Modello selezionabile in Impostazioni (prezzi misurati su 90 s, ott 2026):
+| Idle | Working | Result |
+| --- | --- | --- |
+| ![Idle screen](docs/screenshots/idle-dark.png) | ![Working screen](docs/screenshots/working-dark.png) | ![Result screen](docs/screenshots/result-dark.png) |
 
-  | Modello | 90 minuti ≈ | Note |
-  |---|---:|---|
-  | MAI-Transcribe 2 (predefinito) | $0,16 | il migliore sui nomi italiani, con chi parla |
-  | Scribe v2 | $0,36 | frasi più curate, più lento |
-  | Voxtral Small 3 | $0,39 | alternativa |
-  | Whisper Large v3 | $0,04 | modello precedente |
-- Progresso con percentuale e tempo trascorso; Annulla con Esc.
-- Copia (⇧⌘C) e salva `.txt` (⌘S); dopo il salvataggio il file appare nel Finder.
-- I fallimenti temporanei (rete, 429, 5xx) vengono ritentati fino a 3 volte.
-- Da terminale, senza finestra.
+## Why Voce
 
-## Requisiti
+- **Bring your own key.** Nothing is baked into the build. The key lives in the macOS Keychain and is never written to the repository or the logs.
+- **Built for long meetings.** Files are sliced, compressed and stitched back together; repeated words at the seams are removed. A 90-minute meeting works out to roughly $0.16 with the default model.
+- **Speaker turns.** The default model recognises who is speaking; rename `Parlante 1` to a real name and every copy, save and subtitle follows.
+- **Quiet and efficient.** Uploads stream from disk in 192 KiB blocks, one audio slice exists at a time, and the UI animates on the GPU. Logs are rotating and content-free.
+- **Private by default.** History is opt-in, stored only on this Mac with `0600` permissions, and clearable in one click. Audio is sent to OpenRouter for transcription; nothing else leaves the machine.
 
-- macOS 14+
-- Swift 6 (Command Line Tools bastano per compilare)
-- Opzionale: `ffmpeg` (Homebrew) per un upload più leggero; senza, si usa `afconvert`.
+## Features
 
-## Build
+- Drag a file anywhere on the window, or press `⌘O`. Supported: `m4a`, `mp3`, `wav`, `flac`, `aac`, `mp4`, `ogg`, `webm`.
+- Long recordings are split per model, with overlap, then stitched without duplicated words at the cuts.
+- Speaker turns, optional punctuation/casing pass that never rewrites words.
+- Audio language: **Automatic**, **Italiano**, **English** (per job, from Settings).
+- Result screen: copy (`⇧⌘C`), save/export `.txt`, `.srt`, `.vtt`, rename speakers, find (`⌘F`).
+- Recent transcripts (opt-in), reopen with one click from the idle screen or the menu bar.
+- Menu bar waveform with recent transcripts and “Transcribe a file…”.
+- Bilingual interface: Italian and English, following the system by default.
+- First-run onboarding with key validation and a link to create a key.
+- `--doctor` and a readable log for support.
 
-```bash
-./scripts/package-app.sh
-open dist/Voce.app
-```
+## Requirements
 
-## Icona
+- macOS 14 or later
+- Swift 6 to build (Command Line Tools are enough)
+- An OpenRouter account and key: [openrouter.ai/keys](https://openrouter.ai/keys)
+- Optional: `ffmpeg` (`brew install ffmpeg`) for smaller uploads and faster compression. Without it Voce uses the system `afconvert`.
 
-La sorgente è `Assets/AppIcon.svg`. Dopo averla modificata, `./scripts/make-icon.sh` rigenera `AppIcon.png` e `AppIcon.icns` (serve `rsvg-convert`: `brew install librsvg`).
+## Install
 
-## Da terminale
-
-```bash
-./scripts/transcribe.sh ~/Downloads/rdb.m4a --out ~/Downloads/rdb.txt
-```
-
-Senza `--out` il testo viene scritto accanto al file, con estensione `.txt`.
-
-## Test
+Build and install to `/Applications`:
 
 ```bash
-swift test
+git clone https://github.com/MarioCodarin/Voce.git
+cd Voce
+./scripts/install.sh
 ```
 
-I test usano Swift Testing. Con le sole Command Line Tools (senza Xcode) `swift test` può non trovare il modulo `Testing`; in quel caso:
+The app is ad-hoc signed (no Apple Developer account). On first launch, create a key on OpenRouter, paste it into the welcome screen, choose model and language, and start.
+
+## First run
+
+1. Voce opens a welcome sheet: **Create a key on OpenRouter**, paste it, press **Check**.
+2. Choose a model. The default, **MAI-Transcribe 2**, is the most accurate on Italian names and the only one with speaker turns.
+3. Choose the audio language (Italian by default; Automatic lets the provider detect it).
+4. Decide whether to keep a local transcript history. It is off by default and never uploaded.
+5. Drop an audio file, or press `⌘O`.
+
+You can change everything later in **Voce › Impostazioni** (`⌘,`).
+
+## Models
+
+Prices are approximate, measured on a 90-minute meeting in late 2026. Check OpenRouter for current pricing.
+
+| Model | ~90 min | Speakers | Notes |
+| --- | ---: | :---: | --- |
+| MAI-Transcribe 2 (default) | $0.16 | yes | Best Italian names, fast, 10-minute slices |
+| Scribe v2 | $0.36 | no | Tidier sentences, slower, 4-minute slices |
+| Voxtral Small 3 | $0.39 | no | Alternative, 5-minute slices |
+| Whisper Large v3 | $0.04 | no | Previous model, 5-minute slices |
+
+The glossary is sent per model: MAI uses Azure's `phraseList`, Whisper uses the legacy prompt fields.
+
+## Command line
 
 ```bash
-F=/Library/Developer/CommandLineTools/Library/Developer/Frameworks
-L=/Library/Developer/CommandLineTools/Library/Developer/usr/lib
-swift test --build-system native -Xswiftc -F$F -Xlinker -F$F \
-  -Xlinker -rpath -Xlinker $F -Xlinker -rpath -Xlinker $L \
-  -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
+# transcribe next to the input
+Voce --transcribe ~/Downloads/riunione.m4a
+
+# subtitles in a specific place
+Voce --transcribe talk.m4a --format srt --out ~/Desktop/talk.srt
+
+# language, model, no cleanup
+Voce --transcribe talk.m4a --language en --model "Scribe v2" --no-cleanup
+
+# diagnostics (no secrets)
+Voce --doctor
 ```
+
+Run it without an app bundle (development):
+
+```bash
+swift build -c release
+.build/release/Voce --transcribe file.m4a --out file.txt
+```
+
+Options: `--out`, `--format txt|srt|vtt`, `--language auto|it|en`, `--model`, `--no-cleanup`, `--quiet`, `--verbose`, `--doctor`, `--version`, `--help`.
+
+## Your key
+
+The key is resolved in this order:
+
+1. `VOCE_OPENROUTER_KEY` environment variable
+2. Keychain item saved from Settings (recommended)
+3. First line of `~/.config/voce/openrouter.key` (created with `0600`)
+
+```bash
+mkdir -p ~/.config/voce
+printf '%s\n' "sk-or-v1-..." > ~/.config/voce/openrouter.key
+chmod 600 ~/.config/voce/openrouter.key
+```
+
+Never commit a key. The repository contains no key, and `.gitignore` excludes key files, environment files and audio.
+
+## Privacy and data
+
+| Data | Where | Notes |
+| --- | --- | --- |
+| API key | macOS Keychain (service `it.voce.openrouter`) | Never in logs or the repo |
+| Audio | Sent to OpenRouter | Only as part of the transcription request |
+| Transcripts history | `~/Library/Application Support/Voce/Transcripts` | Opt-in, `0600`, max 100 records |
+| Glossary | `~/.config/voce/glossary.txt` or the bundled sample | `0600`, local only |
+| Logs | `~/Library/Logs/Voce/voce.log` | Rotating, no key/transcript/paths |
+
+There is no telemetry, no analytics and no crash reporting service. See [SECURITY.md](SECURITY.md).
+
+## Glossary
+
+Voce's accuracy on names depends on a glossary. The app ships a neutral sample; your own list is saved to `~/.config/voce/glossary.txt`.
+
+- One word or name per line.
+- Lines starting with `#` are headings and are not sent.
+- Settings can import/export the list and restore the sample.
+- The same list is capped at 2,000 terms and sent with every chunk.
+
+## Development
+
+```bash
+swift build                    # app + library
+./scripts/test.sh              # all tests (handles the Command Line Tools setup)
+swift test                     # with Xcode selected
+```
+
+`VoceKit` contains everything that decides *what* happens (audio, network, stitching, archive). `Voce` contains everything that decides *how* it looks. `VoceKit` never imports AppKit, so it is unit-testable.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module map, data flow and the memory/CPU budget, and [docs/UX.md](docs/UX.md) for the product direction. Contributions are welcome: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Struttura
 
 ```
 Sources/
-  VoceKit/          logica, senza AppKit
-    Config/         modelli e selezione (TranscriptionModel, ModelStore), lingua, endpoint e chiave
-    Audio/          formati, spezzettamento, conversione, file temporanei
-    Network/        client OpenRouter, corpo multipart
-    Transcription/  orchestrazione, segmenti e ricucitura, pulizia stile, errori
-    CLI/            modalità --transcribe
-  Voce/             app AppKit
-    Theme/          DesignSystem (colori, spazi, tipi, durate) e stili dei controlli
-    Views/          schermate: idle, in corso, risultato
-    Controllers/    VoceController (stato) e TranscriptionJob (lavoro)
+  VoceKit/            logica, senza AppKit
+    Audio/            formati, slicing, conversione, file temporanei
+    CLI/              comandi, argomenti, doctor
+    Config/           impostazioni, modelli, lingua, chiave, glossario
+    Network/          client OpenRouter, richieste, validazione chiave
+    Storage/          cronologia locale, formati di esportazione
+    Support/          log, versione, link, manutenzione
+    Transcription/    orchestrazione, segmenti, ricucitura, pulizia, sottotitoli
+  Voce/               app AppKit
+    Controllers/      stato della finestra e job
+    Localization/     testi IT/EN
+    Theme/            design system e controlli
+    Views/            schermate, onboarding, impostazioni, menu bar
 Tests/VoceKitTests/
-docs/ARCHITECTURE.md
+docs/
+scripts/
 ```
 
-Dettagli in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## Italiano
 
-## Impostazioni
+Voce trasforma l'audio di una riunione in testo ordinato, con chi parla, punteggiatura e sottotitoli. Funziona interamente sul Mac tranne l'audio, che viene inviato a OpenRouter con la tua chiave.
 
-Voce > Impostazioni (⌘,) serve per tre cose: la chiave OpenRouter, il modello di trascrizione (menu a tendina con nota di prezzo) e l'interruttore "Sistema punteggiatura e maiuscole". La chiave resta nel Portachiavi; modello e interruttore sono ricordati dall'app. La pulizia dello stile non cambia mai le parole: se il controllo fallisce, resta il testo originale.
+- Trascina un file nella finestra o premi `⌘O`; supporta m4a, mp3, wav, flac, aac, mp4, ogg, webm.
+- La chiave OpenRouter si inserisce al primo avvio e resta nel Portachiavi. Non è mai nel repository.
+- Il modello predefinito è MAI-Transcribe 2 (~$0,16 per 90 minuti) e riconosce chi parla.
+- Puoi copiare, salvare in `.txt`, esportare `.srt`/`.vtt` e rinominare i parlanti.
+- La cronologia locale è facoltativa, resta su questo Mac e si cancella dalle Impostazioni.
+- Interfaccia in italiano o inglese, segue il sistema.
 
-Il glossario di partenza è `Sources/VoceKit/Resources/glossary.txt`, dentro l'app: una parola o un nome per riga, passato al modello a ogni trascrizione (al MAI-Transcribe 2 arriva come elenco di parole chiave). Salvare in Impostazioni scrive `~/.config/voce/glossary.txt`, che da quel momento ha la precedenza.
-
-## Chiave OpenRouter
-
-La chiave non è nel repository. Creane una su [openrouter.ai/keys](https://openrouter.ai/keys) e salvala in Impostazioni, oppure in uno di questi modi:
+Installazione:
 
 ```bash
-# per l'app avviata dal Finder
-mkdir -p ~/.config/voce && echo "sk-or-v1-..." > ~/.config/voce/openrouter.key && chmod 600 ~/.config/voce/openrouter.key
-
-# oppure, per terminale e scripts/transcribe.sh
-export VOCE_OPENROUTER_KEY="sk-or-v1-..."
+./scripts/install.sh
 ```
 
-## Licenza
+Diagnostica:
 
-[MIT](LICENSE).
+```bash
+Voce --doctor
+```
+
+## License
+
+[MIT](LICENSE)

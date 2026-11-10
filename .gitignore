@@ -5,4 +5,32 @@ Voce.app
 *.xcuserstate
 Assets/AppIcon.iconset/
 .claude-flow/
-screenshots/
+.firecrawl/
+/screenshots/
+
+# Secrets and personal data — never commit these.
+*.key
+*.pem
+*.p12
+.env
+.env.*
+secrets/
+**.config/voce/**
+
+# Audio and recordings
+recordings/
+*.m4a
+*.mp3
+*.wav
+*.flac
+*.aiff
+*.aac
+*.ogg
+*.webm
+*.mp4
+*.mov
+
+# Local output
+*.log
+*.srt
+*.vtt

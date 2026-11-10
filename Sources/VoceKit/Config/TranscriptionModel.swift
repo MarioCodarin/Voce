@@ -2,11 +2,13 @@ import Foundation
 
 /// The closed set of transcription models Voce can use. The raw value is the
 /// OpenRouter model id, so it goes straight into the request body.
-public enum TranscriptionModel: String, CaseIterable, Sendable {
+public enum TranscriptionModel: String, CaseIterable, Sendable, Codable {
     case maiTranscribe2 = "microsoft/mai-transcribe-2"
     case scribeV2 = "elevenlabs/scribe-v2"
     case voxtralSmall3 = "mistralai/voxtral-small-transcribe-3-0"
     case whisperLargeV3 = "openai/whisper-large-v3"
+
+    public static var recommended: TranscriptionModel { .maiTranscribe2 }
 
     public var displayName: String {
         switch self {
@@ -17,12 +19,22 @@ public enum TranscriptionModel: String, CaseIterable, Sendable {
         }
     }
 
-    public var caption: String {
+    /// One-line description shown under the picker.
+    public func caption(for interface: InterfaceLanguage) -> String {
+        let it = interface.isItalian
         switch self {
-        case .maiTranscribe2: "MAI-Transcribe 2 · ~$0,16 a riunione · con chi parla"
-        case .scribeV2: "Scribe v2 · ~$0,36 a riunione · frasi più curate"
-        case .voxtralSmall3: "Voxtral Small 3 · ~$0,39 a riunione"
-        case .whisperLargeV3: "Whisper Large v3 · modello precedente"
+        case .maiTranscribe2:
+            return it
+                ? "Consigliato · ~$0,16 a riunione · riconosce chi parla"
+                : "Recommended · ~$0.16 per meeting · identifies speakers"
+        case .scribeV2:
+            return it
+                ? "~$0,36 a riunione · frasi più curate, più lento"
+                : "~$0.36 per meeting · tidier sentences, slower"
+        case .voxtralSmall3:
+            return it ? "~$0,39 a riunione · alternativa" : "~$0.39 per meeting · alternative"
+        case .whisperLargeV3:
+            return it ? "~$0,04 a riunione · modello precedente" : "~$0.04 per meeting · previous model"
         }
     }
 
@@ -46,11 +58,11 @@ public enum TranscriptionModel: String, CaseIterable, Sendable {
 
     /// MAI-Transcribe 2 returns speaker segments via verbose_json.
     public var wantsVerboseJSON: Bool {
-        switch self {
-        case .maiTranscribe2: true
-        case .scribeV2, .voxtralSmall3, .whisperLargeV3: false
-        }
+        self == .maiTranscribe2
     }
+
+    /// True when the model labels who is speaking.
+    public var supportsSpeakers: Bool { wantsVerboseJSON }
 
     /// The `provider.options` block for this model. Entries for unverified
     /// models are always empty: OpenRouter only forwards the serving

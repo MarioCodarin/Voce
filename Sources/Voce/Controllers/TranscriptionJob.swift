@@ -8,9 +8,7 @@ import VoceKit
 @MainActor
 final class TranscriptionJob {
     enum Event {
-        case progress(Double, String)
-        /// Waiting on the network; the bar can't show real progress.
-        case waiting(String)
+        case progress(Double, TranscriptionStatus)
         case finished(TranscriptionOutcome)
         case failed(Error)
     }
@@ -18,23 +16,31 @@ final class TranscriptionJob {
     private var task: Task<Void, Never>?
     private var generation = 0
 
-    func start(_ url: URL, handler: @escaping @MainActor (Event) -> Void) {
+    func start(
+        _ url: URL,
+        model: TranscriptionModel,
+        language: TranscriptionLanguage,
+        speakerLabel: String,
+        cleanupEnabled: Bool,
+        handler: @escaping @MainActor (Event) -> Void
+    ) {
         cancel()
         let id = generation
         task = Task.detached { [weak self] in
             let event: Event
             do {
-                let outcome = try await Transcriber().transcribe(fileURL: url, onProgress: { value, status in
+                let transcriber = Transcriber(
+                    model: model,
+                    language: language,
+                    speakerLabel: speakerLabel,
+                    cleanupEnabled: cleanupEnabled
+                )
+                let outcome = try await transcriber.transcribe(fileURL: url) { value, status in
                     Task { @MainActor in
                         guard let self, self.generation == id else { return }
                         handler(.progress(value, status))
                     }
-                }, onWaiting: { status in
-                    Task { @MainActor in
-                        guard let self, self.generation == id else { return }
-                        handler(.waiting(status))
-                    }
-                })
+                }
                 event = .finished(outcome)
             } catch is CancellationError {
                 return

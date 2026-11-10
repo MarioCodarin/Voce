@@ -17,30 +17,36 @@ final class DropZoneView: NSView {
         wantsLayer = true
         focusRingType = .none
         setAccessibilityRole(.button)
-        setAccessibilityLabel("Scegli o trascina un audio da trascrivere")
+        setAccessibilityLabel(Copy.t("Scegli o trascina un audio da trascrivere", "Choose or drop an audio file to transcribe"))
     }
 
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 1.5, dy: 1.5), xRadius: Radius.panel, yRadius: Radius.panel)
+        let rect = bounds.insetBy(dx: 1.5, dy: 1.5)
+        let path = NSBezierPath(roundedRect: rect, xRadius: Radius.panel, yRadius: Radius.panel)
+
         if targeted {
-            Palette.accent.withAlphaComponent(0.10).setFill()
+            Palette.accentWashStrong.setFill()
         } else {
             Palette.surface.setFill()
         }
         path.fill()
 
         let stroke: NSColor
-        if targeted || keyboardFocus {
+        let width: CGFloat
+        if targeted {
+            stroke = Palette.accent
+            width = 2
+        } else if keyboardFocus {
             stroke = Palette.accentText
-            path.lineWidth = 2
+            width = 1.5
         } else {
-            stroke = Palette.muted.withAlphaComponent(hovering ? 0.8 : 0.5)
-            path.lineWidth = 1.5
-            path.setLineDash([6, 5], count: 2, phase: 0)
+            stroke = Palette.hairline.withAlphaComponent(hovering ? 0.9 : 0.6)
+            width = 1
         }
         stroke.setStroke()
+        path.lineWidth = width
         path.stroke()
     }
 
@@ -91,8 +97,7 @@ final class DropZoneView: NSView {
         return true
     }
 
-    // A plain mouse handler (not a gesture recognizer) so the error button inside the zone
-    // keeps its own click.
+    // A plain mouse handler (not a gesture recognizer) so buttons inside the zone keep their own click.
     override func mouseDown(with event: NSEvent) {}
 
     override func mouseUp(with event: NSEvent) {

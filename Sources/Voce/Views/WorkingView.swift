@@ -1,22 +1,23 @@
 import AppKit
 import VoceKit
 
-/// Second screen: file name, status, progress bar, elapsed time and a cancel button.
+/// Second screen: the working waveform, status, progress and cancel.
 final class WorkingView: NSView {
     var onCancel: (() -> Void)?
 
     private let fileLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
     private let detailLabel = NSTextField(labelWithString: "")
+    private let hintLabel = NSTextField(labelWithString: "")
+    private let waveform = WaveformView()
     private let progress = ProgressBar()
-    private let cancelButton = ActionButton(title: "Annulla", target: nil, action: nil)
+    private let cancelButton = ActionButton(title: "", target: nil, action: nil)
 
     private var timer: Timer?
     private var startedAt = Date()
-    /// Shown in front of the progress line for the whole job.
     private var modelName = ""
-    /// Last quarter announced to VoiceOver, so progress is spoken at 25/50/75% and not on every tick.
     private var announcedQuarter = 0
+    private var lastStatus: TranscriptionStatus = .listening
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -29,9 +30,12 @@ final class WorkingView: NSView {
     func begin(file: String, model: TranscriptionModel) {
         fileLabel.stringValue = file
         modelName = model.displayName
-        statusLabel.stringValue = "In ascolto…"
+        statusLabel.stringValue = TranscriptionStatus.listening.displayText(for: Copy.lang)
+        lastStatus = .listening
         progress.setIndeterminate(false)
         progress.setValue(0, animated: false)
+        waveform.setProgress(0)
+        waveform.startAnimating()
         startedAt = Date()
         announcedQuarter = 0
         refreshDetail()
@@ -45,23 +49,27 @@ final class WorkingView: NSView {
     }
 
     /// Progress only moves forward, so late callbacks can't make the bar jump back.
-    func update(status: String, progress value: Double) {
-        setStatus(status)
-        progress.setIndeterminate(false)
-        progress.setValue(max(progress.value, value))
+    func update(status: TranscriptionStatus, progress value: Double) {
+        lastStatus = status
+        setStatus(status.displayText(for: Copy.lang))
+        progress.setIndeterminate(status.isIndeterminate)
+        if !status.isIndeterminate {
+            progress.setValue(max(progress.value, value))
+            waveform.setProgress(max(waveform.progress, CGFloat(value)))
+        }
         refreshDetail()
         let quarter = Int(progress.value * 4)
-        if quarter > announcedQuarter, quarter < 4 {
+        if quarter > announcedQuarter, quarter < 4, !status.isIndeterminate {
             announcedQuarter = quarter
-            Announcer.say("\(quarter * 25) per cento")
+            Announcer.say(Copy.percent(quarter * 25))
         }
     }
 
-    /// Shows a busy bar for network waits, where there is no measurable progress.
-    func update(waiting status: String) {
-        setStatus(status)
-        progress.setIndeterminate(true)
-        refreshDetail()
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        waveform.stopAnimating()
+        progress.setIndeterminate(false)
     }
 
     private func setStatus(_ status: String) {
@@ -69,17 +77,11 @@ final class WorkingView: NSView {
         statusLabel.stringValue = status
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
-        progress.setIndeterminate(false)
-    }
-
     private func refreshDetail() {
         let elapsed = Int(Date().timeIntervalSince(startedAt))
         let time = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
         let prefix = modelName.isEmpty ? "" : modelName + "  ·  "
-        if progress.isIndeterminate {
+        if lastStatus.isIndeterminate {
             detailLabel.stringValue = prefix + time
         } else {
             let percent = Int((progress.value * 100).rounded())
@@ -88,27 +90,40 @@ final class WorkingView: NSView {
     }
 
     private func build() {
-        fileLabel.applyStyle(font: Typo.title, color: Palette.ink)
+        fileLabel.applyStyle(font: Typo.title, color: Palette.ink, lines: 1)
         fileLabel.lineBreakMode = .byTruncatingMiddle
-        statusLabel.applyStyle(font: Typo.label, color: Palette.muted)
-        detailLabel.applyStyle(font: Typo.captionDigits, color: Palette.muted)
+
+        waveform.barCount = 13
+        waveform.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            waveform.widthAnchor.constraint(equalToConstant: 120),
+            waveform.heightAnchor.constraint(equalToConstant: 34)
+        ])
+
+        statusLabel.applyStyle(font: Typo.headline, color: Palette.ink, lines: 1)
+        statusLabel.setAccessibilityLabel(Copy.transcript)
+        detailLabel.applyStyle(font: Typo.captionDigits, color: Palette.muted, lines: 1)
         detailLabel.setAccessibilityElement(false)
+        hintLabel.applyStyle(font: Typo.caption, color: Palette.muted, lines: 1)
+        hintLabel.stringValue = Copy.keepUsingMac
 
         progress.translatesAutoresizingMaskIntoConstraints = false
 
+        cancelButton.title = Copy.cancel
         cancelButton.style(accent: false)
-        cancelButton.toolTip = "Annulla (esc)"
+        cancelButton.toolTip = Copy.cancel + " (esc)"
         cancelButton.target = self
         cancelButton.action = #selector(cancelClicked)
 
-        let stack = NSStackView(views: [fileLabel, statusLabel, progress, detailLabel, cancelButton])
+        let stack = NSStackView(views: [fileLabel, waveform, statusLabel, progress, detailLabel, hintLabel, cancelButton])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = Space.s
-        stack.setCustomSpacing(Space.xs, after: fileLabel)
-        stack.setCustomSpacing(Space.l, after: statusLabel)
+        stack.setCustomSpacing(Space.xl, after: fileLabel)
+        stack.setCustomSpacing(Space.m, after: waveform)
+        stack.setCustomSpacing(Space.xs, after: statusLabel)
         stack.setCustomSpacing(Space.s, after: progress)
-        stack.setCustomSpacing(Space.xl, after: detailLabel)
+        stack.setCustomSpacing(Space.xxl, after: hintLabel)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 

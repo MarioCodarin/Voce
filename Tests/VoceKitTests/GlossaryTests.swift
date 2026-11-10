@@ -8,35 +8,30 @@ struct GlossaryTests {
         #expect(terms == ["Mario", "voce"])
     }
 
-    @Test func emptyGlossaryHasNoPrompt() {
-        #expect(Glossary.initialPrompt(from: " \n ") == nil)
-    }
-
-    @Test func joinsTermsForTheModel() {
-        #expect(Glossary.initialPrompt(from: "Mario\nOpenRouter") == "Mario, OpenRouter")
-    }
-
-    @Test func appShipsTheGlossary() throws {
-        let text = try #require(Glossary.bundledText())
-        #expect(text.contains("Piadineria dei Leoni"))
-        #expect(text.contains("Jolanda Roselli"))
-        #expect(text.contains("Youness Lahmain"))
-        #expect(Glossary.terms(in: text).contains("WG"))
-        #expect(!Glossary.terms(in: text).contains("VG"))
-    }
-
     @Test func headingsAreNotSent() {
         #expect(Glossary.terms(in: "# Nomi\nMario\n\n# Altro\nVoce") == ["Mario", "Voce"])
-        #expect(Glossary.initialPrompt(from: "# Nomi\nMario") == "Mario")
     }
 
-    @Test func cutsOnATermBoundary() throws {
-        let terms = (0..<200).map { String(format: "%03d", $0) + String(repeating: "x", count: 80) }
-        let value = try #require(Glossary.initialPrompt(from: terms.joined(separator: "\n")))
-        #expect(value.count <= Glossary.maxCharacters)
-        #expect(!value.hasSuffix(","))
-        #expect(value.hasPrefix("000"))
-        #expect(!value.contains("199"))
+    @Test func appShipsANeutralSample() throws {
+        let text = try #require(Glossary.bundledText())
+        #expect(text.contains("Mario Rossi"))
+        #expect(text.contains("ESN"))
+        #expect(Glossary.terms(in: text).contains("WG"))
+        #expect(!Glossary.terms(in: text).isEmpty)
+    }
+
+    @Test func normalizingKeepsHeadingsAndCollapsesBlanks() {
+        let normalized = Glossary.normalizedText("  # Nomi \n\nMario\nmario\n\n\nLuca\n\n")
+        #expect(normalized == "# Nomi\n\nMario\n\nLuca")
+    }
+
+    @Test func emptyGlossaryIsEmpty() {
+        #expect(Glossary.terms(in: " \n ") == [])
+        #expect(Glossary.normalizedText(" \n ") == "")
+    }
+
+    @Test func capsTheTermList() {
+        let text = (0..<(Glossary.maxTerms + 50)).map { "term\($0)" }.joined(separator: "\n")
+        #expect(Glossary.terms(in: text).count == Glossary.maxTerms + 50)
     }
 }
-

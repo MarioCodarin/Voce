@@ -30,3 +30,24 @@ struct AudioChunkerTests {
         #expect(AudioChunker.ranges(duration: 0).isEmpty)
     }
 }
+
+import AVFoundation
+import Foundation
+
+extension AudioChunkerTests {
+    @Test func exportsOneSliceOnThisSystem() async throws {
+        let source = silentWAV(seconds: 2)
+        let output = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voce-slice-\(UUID().uuidString).m4a")
+        defer {
+            try? FileManager.default.removeItem(at: source)
+            try? FileManager.default.removeItem(at: output)
+        }
+
+        let asset = AVURLAsset(url: source)
+        try await AudioChunker.export(asset: asset, start: 0, end: 1, to: output)
+        #expect(FileManager.default.fileExists(atPath: output.path))
+        let duration = try await AudioChunker.duration(of: output)
+        #expect(abs(duration - 1) < 0.2)
+    }
+}

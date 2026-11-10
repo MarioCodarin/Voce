@@ -11,7 +11,11 @@ struct MultipartBody {
 
     /// Creates the body file with the text `fields` followed by the audio `file`.
     func write(fields: [(name: String, value: String)], file fileURL: URL, to destination: URL) throws {
-        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        FileManager.default.createFile(
+            atPath: destination.path,
+            contents: nil,
+            attributes: [.posixPermissions: 0o600]
+        )
         let output = try FileHandle(forWritingTo: destination)
         defer { try? output.close() }
 

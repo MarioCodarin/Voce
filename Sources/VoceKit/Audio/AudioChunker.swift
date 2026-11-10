@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-/// Splits long recordings into slices the API accepts.
+/// Splits long recordings into slices the API accepts, one at a time.
 enum AudioChunker {
     /// Longer uploads make the provider time out (HTTP 408), so keep slices short.
     static let maxChunkSeconds: Double = 5 * 60
@@ -9,7 +9,11 @@ enum AudioChunker {
     static let overlapSeconds: Double = 2
 
     /// Time ranges covering `duration`. `chunk` caps slice length; `overlap` is shared with the next slice.
-    static func ranges(duration: Double, chunk: Double = maxChunkSeconds, overlap: Double = overlapSeconds) -> [(start: Double, end: Double)] {
+    static func ranges(
+        duration: Double,
+        chunk: Double = maxChunkSeconds,
+        overlap: Double = overlapSeconds
+    ) -> [(start: Double, end: Double)] {
         guard duration > 0 else { return [] }
         if duration <= chunk {
             return [(0, duration)]
@@ -36,45 +40,37 @@ enum AudioChunker {
         return seconds
     }
 
-    /// Returns `[url]` for short audio, otherwise M4A slices in a fresh temporary folder.
-    static func split(_ url: URL, chunk: Double = maxChunkSeconds, overlap: Double = overlapSeconds) async throws -> [URL] {
-        let seconds = try await duration(of: url)
-        let slices = ranges(duration: seconds, chunk: chunk, overlap: overlap)
-        if slices.count == 1 {
-            return [url]
-        }
-
-        let asset = AVURLAsset(url: url)
-        let folder = try TempFiles.makeDirectory()
-
-        var urls: [URL] = []
-        for (index, slice) in slices.enumerated() {
-            try Task.checkCancellation()
-            let out = folder.appendingPathComponent("chunk-\(index).m4a")
-            try await export(asset: asset, start: slice.start, end: slice.end, to: out)
-            urls.append(out)
-        }
-        return urls
-    }
-
-    /// Deletes the slices `split` created. The original file is never touched.
-    static func discard(_ chunks: [URL], original: URL) {
-        let temps = chunks.filter { $0 != original }
-        guard let first = temps.first else { return }
-        TempFiles.remove(first.deletingLastPathComponent())
-    }
-
-    private static func export(asset: AVAsset, start: Double, end: Double, to url: URL) async throws {
+    /// Exports one range to a temporary M4A. The caller deletes the file.
+    static func export(asset: AVAsset, start: Double, end: Double, to url: URL) async throws {
+        try? FileManager.default.removeItem(at: url)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            Log.error(.audio, "export session unavailable")
             throw TranscribeError.exportFailed
         }
+        session.timeRange = CMTimeRange(
+            start: CMTime(seconds: start, preferredTimescale: 600),
+            end: CMTime(seconds: end, preferredTimescale: 600)
+        )
+
+        if #available(macOS 15.0, *) {
+            // The block-based API is the supported one on macOS 15+; the old `export()`
+            // is deprecated there.
+            do {
+                try await session.export(to: url, as: .m4a)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                Log.error(.audio, error, context: "slice export failed")
+                throw TranscribeError.exportFailed
+            }
+            return
+        }
+
         session.outputURL = url
         session.outputFileType = .m4a
-        let tStart = CMTime(seconds: start, preferredTimescale: 600)
-        let tEnd = CMTime(seconds: end, preferredTimescale: 600)
-        session.timeRange = CMTimeRange(start: tStart, end: tEnd)
         await session.export()
         guard session.status == .completed else {
+            Log.error(.audio, "slice export status=\(session.status.rawValue)")
             throw TranscribeError.exportFailed
         }
     }

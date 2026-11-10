@@ -5,22 +5,25 @@ struct OpenRouterClient: Sendable {
     private let apiKey: String
     private let session: URLSession
     private let retryDelay: Duration
-    /// Snapshot of the model and glossary, so a job does not change mid-upload if Impostazioni is saved.
+    /// Snapshot of the model and glossary, so a job does not change mid-upload if Settings is saved.
     private let model: TranscriptionModel
     private let glossaryTerms: [String]
+    private let language: TranscriptionLanguage
 
     init(
         apiKey: String? = nil,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         retryDelay: Duration = .seconds(2),
-        model: TranscriptionModel = ModelStore.current,
-        glossaryTerms: [String] = []
+        model: TranscriptionModel = VoceSettings.model,
+        glossaryTerms: [String] = [],
+        language: TranscriptionLanguage = VoceSettings.language
     ) {
-        self.apiKey = apiKey ?? Secrets.openRouterKey
-        self.session = session
+        self.apiKey = (apiKey ?? Secrets.openRouterKey).trimmingCharacters(in: .whitespacesAndNewlines)
+        self.session = session ?? NetworkSession.shared
         self.retryDelay = retryDelay
         self.model = model
         self.glossaryTerms = glossaryTerms
+        self.language = language
     }
 
     /// Fails fast when no key is configured, before any audio work is done.
@@ -35,6 +38,7 @@ struct OpenRouterClient: Sendable {
             do {
                 return try await send(fileURL)
             } catch let error as TranscribeError where error.isRetryable && attempt < TranscriptionConfig.maxAttempts {
+                Log.warning(.network, "retry \(attempt + 1)/\(TranscriptionConfig.maxAttempts) reason=\(error.logDescription)")
                 onRetry?(attempt + 1)
                 try await Task.sleep(for: retryDelay * (1 << (attempt - 1)))
                 attempt += 1
@@ -46,7 +50,22 @@ struct OpenRouterClient: Sendable {
         try validateKey()
         let bodyURL = TempFiles.url(extension: "body")
         defer { TempFiles.remove(bodyURL) }
-        let contentType = try TranscriptionRequest.write(audio: fileURL, terms: glossaryTerms, model: model, to: bodyURL)
+
+        let writeStart = Date()
+        let contentType = try TranscriptionRequest.write(
+            audio: fileURL,
+            terms: glossaryTerms,
+            model: model,
+            language: language,
+            to: bodyURL
+        )
+        let bodyBytes = TempFiles.size(of: bodyURL)
+        Log.debug(.network, String(
+            format: "body %@ bytes=%d in %.0fms",
+            contentType.hasPrefix("application/json") ? "json" : "multipart",
+            bodyBytes,
+            Date().timeIntervalSince(writeStart) * 1000
+        ))
 
         var request = URLRequest(url: TranscriptionConfig.endpoint)
         request.httpMethod = "POST"
@@ -56,6 +75,7 @@ struct OpenRouterClient: Sendable {
         request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = TranscriptionConfig.requestTimeout
 
+        let started = Date()
         let data: Data
         let response: URLResponse
         do {
@@ -63,9 +83,15 @@ struct OpenRouterClient: Sendable {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch {
+            Log.error(.network, "upload failed after \(Int(Date().timeIntervalSince(started) * 1000))ms")
             throw TranscribeError.network
         }
 
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        Log.info(.network, String(
+            format: "upload status=%d body=%dB in %.0fms",
+            status, data.count, Date().timeIntervalSince(started) * 1000
+        ))
         return try Self.parse(data: data, response: response)
     }
 
@@ -77,11 +103,12 @@ struct OpenRouterClient: Sendable {
         switch status {
         case 0: throw TranscribeError.network
         case 401, 403: throw TranscribeError.unauthorized
+        case 402: throw TranscribeError.insufficientCredit
         case 408, 504: throw TranscribeError.timeout
         case 413: throw TranscribeError.tooLarge
         case 400...:
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error.message
-            throw TranscribeError.server(status: status, message: message ?? "Errore \(status)")
+            throw TranscribeError.server(status: status, message: message ?? "HTTP \(status)")
         default: break
         }
 
@@ -106,6 +133,11 @@ struct OpenRouterClient: Sendable {
             return [TranscriptSegment(speaker: nil, text: text, start: 0)]
         }
         throw TranscribeError.emptyTranscript
+    }
+
+    /// Whether a key works. The onboarding screen calls this without starting a transcription.
+    static func checkKey(_ key: String, session: URLSession? = nil) async throws -> KeyChecker.Info {
+        try await KeyChecker.check(key, session: session)
     }
 
     private struct VerboseBody: Decodable {

@@ -1,13 +1,39 @@
 import AppKit
 
 extension NSTextField {
-    /// Centered, tail-truncated label in the app's type style.
-    func applyStyle(font: NSFont, color: NSColor, lines: Int = 2) {
+    /// Label in the app's type style.
+    func applyStyle(
+        font: NSFont,
+        color: NSColor,
+        lines: Int = 2,
+        alignment: NSTextAlignment = .center
+    ) {
         self.font = font
         textColor = color
-        alignment = .center
-        lineBreakMode = .byTruncatingTail
+        self.alignment = alignment
+        lineBreakMode = lines == 1 ? .byTruncatingTail : .byWordWrapping
         maximumNumberOfLines = lines
+    }
+}
+
+extension NSTextView {
+    /// Shared transcript body styling: readable size, generous line height.
+    func applyTranscriptStyle() {
+        font = Typo.body
+        textColor = Palette.ink
+        drawsBackground = false
+        isEditable = false
+        isRichText = false
+        usesFindBar = true
+        isIncrementalSearchingEnabled = true
+        textContainerInset = NSSize(width: 0, height: Space.m)
+        isVerticallyResizable = true
+        isHorizontallyResizable = false
+        autoresizingMask = [.width]
+        minSize = .zero
+        maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textContainer?.widthTracksTextView = true
+        textContainer?.lineFragmentPadding = 0
     }
 }
 
@@ -15,12 +41,12 @@ extension NSTextField {
 /// `accent` fills it with the brand colour and marks the screen's primary action.
 final class ActionButton: NSButton {
     private var accent = false
-    private var hovering = false { didSet { refreshBackground() } }
-    private var pressed = false { didSet { refreshBackground() } }
+    private var hovering = false { didSet { refreshBackground(animated: true) } }
+    private var pressed = false { didSet { refreshBackground(animated: true) } }
 
     override var intrinsicContentSize: NSSize {
         let size = super.intrinsicContentSize
-        return NSSize(width: size.width + Space.xl, height: 28)
+        return NSSize(width: size.width + Space.xl, height: 30)
     }
 
     func style(accent: Bool) {
@@ -34,25 +60,29 @@ final class ActionButton: NSButton {
         font = accent ? NSFont.systemFont(ofSize: 13, weight: .semibold) : Typo.labelStrong
         focusRingType = .exterior
         controlSize = .regular
-        refreshBackground()
+        refreshBackground(animated: false)
     }
 
-    private func refreshBackground() {
+    private func refreshBackground(animated: Bool) {
         let base: NSColor = accent ? Palette.accent : Palette.control
         let color: NSColor
         switch (pressed, hovering) {
         case (true, _): color = base.blended(withFraction: 0.18, of: .black) ?? base
-        case (_, true): color = accent ? (base.blended(withFraction: 0.12, of: .white) ?? base) : Palette.ink.withAlphaComponent(0.14)
+        case (_, true): color = accent ? (base.blended(withFraction: 0.10, of: .white) ?? base) : Palette.ink.withAlphaComponent(0.14)
         default: color = base
         }
         effectiveAppearance.performAsCurrentDrawingAppearance {
+            CATransaction.begin()
+            CATransaction.setDisableActions(!animated || Motion.reduced)
+            CATransaction.setAnimationDuration(Motion.quick)
             layer?.backgroundColor = color.cgColor
+            CATransaction.commit()
         }
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        refreshBackground()
+        refreshBackground(animated: false)
     }
 
     override func updateTrackingAreas() {
@@ -86,6 +116,54 @@ final class ActionButton: NSButton {
     override var focusRingMaskBounds: NSRect { bounds }
 }
 
+/// A flat, clickable text button used for tertiary actions ("Crea una chiave…").
+final class LinkButton: NSButton {
+    private var hovering = false { didSet { needsDisplay = true } }
+
+    init(title: String, target: AnyObject?, action: Selector?) {
+        super.init(frame: .zero)
+        self.title = title
+        self.target = target
+        self.action = action
+        isBordered = false
+        bezelStyle = .inline
+        setButtonType(.momentaryChange)
+        font = Typo.labelStrong
+        contentTintColor = Palette.accentText
+        focusRingType = .exterior
+        wantsLayer = true
+        layer?.cornerRadius = Radius.control
+        setAccessibilityRole(.button)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.filter { $0.owner === self }.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(
+            rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if hovering {
+            Palette.accentWash.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: -6, dy: -3), xRadius: 6, yRadius: 6).fill()
+        }
+        super.draw(dirtyRect)
+    }
+
+    override func viewDidHide() {
+        super.viewDidHide()
+        hovering = false
+    }
+}
+
 /// Thin rounded progress bar in the accent colour. Determinate fills smoothly;
 /// indeterminate slides a segment along the track (a still segment under Reduce Motion).
 final class ProgressBar: NSView {
@@ -94,7 +172,7 @@ final class ProgressBar: NSView {
     private(set) var value: Double = 0
     private(set) var isIndeterminate = false
 
-    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 6) }
+    override var intrinsicContentSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 5) }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -104,7 +182,7 @@ final class ProgressBar: NSView {
         track.addSublayer(fill)
         setAccessibilityElement(true)
         setAccessibilityRole(.progressIndicator)
-        setAccessibilityLabel("Avanzamento della trascrizione")
+        setAccessibilityLabel(Copy.transcript)
         refreshColors()
     }
 
@@ -181,6 +259,93 @@ final class ProgressBar: NSView {
     override func accessibilityMinValue() -> Any? { NSNumber(value: 0) }
     override func accessibilityMaxValue() -> Any? { NSNumber(value: 1) }
     override func accessibilityValueDescription() -> String? {
-        isIndeterminate ? "In corso" : "\(Int((value * 100).rounded())) per cento"
+        isIndeterminate ? Copy.t("In corso", "In progress") : Copy.percent(Int((value * 100).rounded()))
     }
+}
+
+/// Rounded surface with a hairline border, used for cards and sections.
+final class CardView: NSView {
+    var cornerRadius: CGFloat = Radius.card
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerCurve = .continuous
+        layer?.cornerRadius = cornerRadius
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: cornerRadius, yRadius: cornerRadius)
+        Palette.surfaceRaised.setFill()
+        path.fill()
+        Palette.hairline.withAlphaComponent(0.55).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+}
+
+
+/// Small rounded label used for status metadata (model, language, counts).
+final class PillView: NSView {
+    private let label = NSTextField(labelWithString: "")
+    private let dot = NSView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.cornerRadius = 9
+        layer?.cornerCurve = .continuous
+
+        dot.wantsLayer = true
+        dot.layer?.cornerRadius = 3
+        dot.translatesAutoresizingMaskIntoConstraints = false
+
+        label.font = Typo.captionStrong
+        label.textColor = Palette.muted
+        label.lineBreakMode = .byTruncatingTail
+        label.maximumNumberOfLines = 1
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(dot)
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            dot.widthAnchor.constraint(equalToConstant: 6),
+            dot.heightAnchor.constraint(equalToConstant: 6),
+            dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 9),
+            dot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 6),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+            label.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3)
+        ])
+        setAccessibilityElement(false)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    func setText(_ text: String, accentDot: Bool = true) {
+        label.stringValue = text
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = Palette.control.cgColor
+            dot.layer?.backgroundColor = (accentDot ? Palette.accent : Palette.muted).cgColor
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        setText(label.stringValue, accentDot: true)
+    }
+}
+
+
+/// A top-left origin container for scrollable settings and onboarding content.
+final class FlippedView: NSView {
+    override var isFlipped: Bool { true }
 }

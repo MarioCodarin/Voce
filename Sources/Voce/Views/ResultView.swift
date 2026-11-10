@@ -1,20 +1,26 @@
 import AppKit
+import VoceKit
 
-/// Final screen: file name, copy/save/new buttons and the scrollable transcript.
+/// Final screen: file header, export actions and the scrollable transcript.
 final class ResultView: NSView {
     var onCopy: (() -> Void)?
-    var onSave: (() -> Void)?
+    var onExport: ((OutputFormat) -> Void)?
+    var onRename: (() -> Void)?
     var onNew: (() -> Void)?
 
     private let fileLabel = NSTextField(labelWithString: "")
-    private let countLabel = NSTextField(labelWithString: "")
-    private let copyButton = ActionButton(title: "Copia", target: nil, action: nil)
-    private let saveButton = ActionButton(title: "Salva .txt", target: nil, action: nil)
-    private let newButton = ActionButton(title: "Nuovo", target: nil, action: nil)
+    private let captionLabel = NSTextField(labelWithString: "")
+    private let renameButton = LinkButton(title: "", target: nil, action: nil)
+    private let exportButton = ActionButton(title: "", target: nil, action: nil)
+    private let copyButton = ActionButton(title: "", target: nil, action: nil)
+    private let newButton = NSButton()
     private let divider = NSBox()
     private let scroll = NSScrollView()
     private let textView = NSTextView()
     private var copyReset: Task<Void, Never>?
+
+    private var speakerLabel = "Parlante"
+    private var speakerNames: [Int: String] = [:]
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -23,32 +29,47 @@ final class ResultView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    func show(file: String, text: String, caption: String) {
+    func show(
+        file: String,
+        text: String,
+        caption: String,
+        speakerLabel: String,
+        speakerNames: [Int: String],
+        speakerCount: Int
+    ) {
+        self.speakerLabel = speakerLabel
+        self.speakerNames = speakerNames
         fileLabel.stringValue = file
-        countLabel.stringValue = caption
-        textView.textStorage?.setAttributedString(Self.styled(text))
+        captionLabel.stringValue = caption
+        renameButton.isHidden = speakerCount < 1
+        textView.textStorage?.setAttributedString(Self.styled(text, label: speakerLabel, names: speakerNames))
         textView.scrollToBeginningOfDocument(nil)
         resetCopyTitle()
     }
 
-    /// Speaker turns lead with their label; everything else follows the plan:
-    /// `Parlante N:` in semibold accent, body text in ink, blank line between turns.
-    private static func styled(_ text: String) -> NSAttributedString {
+    /// Speaker turns lead with their label in semibold accent; body text stays ink.
+    private static func styled(_ text: String, label: String, names: [Int: String]) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 5
-        let body: [NSAttributedString.Key: Any] = [.font: Typo.body, .foregroundColor: Palette.ink, .paragraphStyle: paragraph]
-        let speaker: [NSAttributedString.Key: Any] = [.font: Typo.labelStrong, .foregroundColor: Palette.accentText]
+        let body: [NSAttributedString.Key: Any] = [
+            .font: Typo.body,
+            .foregroundColor: Palette.ink,
+            .paragraphStyle: paragraph
+        ]
+        let speaker: [NSAttributedString.Key: Any] = [
+            .font: Typo.labelStrong,
+            .foregroundColor: Palette.accentText
+        ]
+        let knownNames = Set(names.values.map { $0.trimmingCharacters(in: .whitespaces) })
 
         let result = NSMutableAttributedString()
         let turns = text.components(separatedBy: "\n\n")
         for (index, turn) in turns.enumerated() {
             if index > 0 { result.append(NSAttributedString(string: "\n\n", attributes: body)) }
-            let trimmed = turn.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let colon = trimmed.firstIndex(of: ":"),
-               trimmed[..<colon].range(of: #"^Parlante \d+$"#, options: .regularExpression) != nil {
-                let label = String(trimmed[...colon])
-                result.append(NSAttributedString(string: label, attributes: speaker))
-                result.append(NSAttributedString(string: String(trimmed[trimmed.index(after: colon)...]), attributes: body))
+            if let colon = turn.firstIndex(of: ":"),
+               isSpeakerPrefix(String(turn[..<colon]), label: label, names: knownNames) {
+                result.append(NSAttributedString(string: String(turn[...colon]), attributes: speaker))
+                result.append(NSAttributedString(string: String(turn[turn.index(after: colon)...]), attributes: body))
             } else {
                 result.append(NSAttributedString(string: turn, attributes: body))
             }
@@ -56,12 +77,18 @@ final class ResultView: NSView {
         return result
     }
 
+    private static func isSpeakerPrefix(_ prefix: String, label: String, names: Set<String>) -> Bool {
+        if names.contains(prefix.trimmingCharacters(in: .whitespaces)) { return true }
+        guard prefix.hasPrefix(label + " ") else { return false }
+        let digits = prefix.dropFirst(label.count + 1)
+        return !digits.isEmpty && digits.allSatisfy(\.isNumber)
+    }
 
     /// Briefly swaps the Copy button's title to confirm the copy happened.
     func flashCopied() {
         copyReset?.cancel()
-        copyButton.title = "Copiato ✓"
-        Announcer.say("Copiato negli appunti")
+        copyButton.title = Copy.copied
+        Announcer.say(Copy.copiedAnnouncement)
         copyReset = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
@@ -74,7 +101,7 @@ final class ResultView: NSView {
 
     private func resetCopyTitle() {
         copyReset?.cancel()
-        copyButton.title = "Copia"
+        copyButton.title = Copy.copy
     }
 
     /// Keeps lines at a comfortable reading width however wide the window gets.
@@ -87,35 +114,50 @@ final class ResultView: NSView {
     }
 
     private func build() {
-        fileLabel.applyStyle(font: Typo.title, color: Palette.ink, lines: 1)
-        fileLabel.alignment = .left
+        fileLabel.applyStyle(font: Typo.title, color: Palette.ink, lines: 1, alignment: .left)
         fileLabel.lineBreakMode = .byTruncatingMiddle
         fileLabel.setContentCompressionResistancePriority(.init(250), for: .horizontal)
-        countLabel.applyStyle(font: Typo.caption, color: Palette.muted, lines: 1)
-        countLabel.alignment = .left
-        let titles = NSStackView(views: [fileLabel, countLabel])
+
+        captionLabel.applyStyle(font: Typo.caption, color: Palette.muted, lines: 1, alignment: .left)
+        captionLabel.setContentCompressionResistancePriority(.init(250), for: .horizontal)
+
+        renameButton.title = Copy.renameSpeakers
+        renameButton.target = self
+        renameButton.action = #selector(renameClicked)
+        renameButton.font = Typo.captionStrong
+        renameButton.toolTip = Copy.speakerSheetBody
+
+        let titles = NSStackView(views: [fileLabel, captionLabel, renameButton])
         titles.orientation = .vertical
         titles.alignment = .leading
         titles.spacing = 2
+        titles.setCustomSpacing(Space.s, after: captionLabel)
         titles.setContentCompressionResistancePriority(.init(250), for: .horizontal)
 
         copyButton.style(accent: true)
-        saveButton.style(accent: false)
-        newButton.style(accent: false)
-        copyButton.toolTip = "Copia la trascrizione (⇧⌘C)"
-        saveButton.toolTip = "Salva come file di testo (⌘S)"
-        newButton.toolTip = "Trascrivi un altro audio (⌘N)"
-        for (button, action) in [
-            (copyButton, #selector(copyClicked)),
-            (saveButton, #selector(saveClicked)),
-            (newButton, #selector(newClicked))
-        ] {
-            button.target = self
-            button.action = action
-        }
+        exportButton.style(accent: false)
+        copyButton.title = Copy.copy
+        exportButton.title = Copy.export
+        copyButton.toolTip = Copy.copy + " (⇧⌘C)"
+        exportButton.toolTip = Copy.export
+        copyButton.target = self
+        copyButton.action = #selector(copyClicked)
+        exportButton.target = self
+        exportButton.action = #selector(exportClicked)
 
-        let actions = NSStackView(views: [newButton, saveButton, copyButton])
+        newButton.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: Copy.newTranscript)
+        newButton.isBordered = false
+        newButton.bezelStyle = .inline
+        newButton.contentTintColor = Palette.muted
+        newButton.toolTip = Copy.newTranscript + " (⌘N)"
+        newButton.target = self
+        newButton.action = #selector(newClicked)
+        newButton.setAccessibilityLabel(Copy.newTranscript)
+        newButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let actions = NSStackView(views: [newButton, exportButton, copyButton])
         actions.orientation = .horizontal
+        actions.alignment = .centerY
         actions.spacing = Space.s
         actions.setHuggingPriority(.required, for: .horizontal)
 
@@ -126,21 +168,8 @@ final class ResultView: NSView {
 
         divider.boxType = .separator
 
-        textView.isEditable = false
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
-        textView.setAccessibilityLabel("Trascrizione")
-        textView.isRichText = false
-        textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 0, height: Space.m)
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.minSize = .zero
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.lineFragmentPadding = 0
+        textView.applyTranscriptStyle()
+        textView.setAccessibilityLabel(Copy.transcript)
 
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
@@ -166,11 +195,36 @@ final class ResultView: NSView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Layout.side),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Layout.side),
             stack.topAnchor.constraint(equalTo: topAnchor, constant: Layout.top - Space.s),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Space.l)
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Space.l),
+            newButton.widthAnchor.constraint(equalToConstant: 22),
+            newButton.heightAnchor.constraint(equalToConstant: 22)
         ])
     }
 
+    // MARK: - Actions
+
     @objc private func copyClicked() { onCopy?() }
-    @objc private func saveClicked() { onSave?() }
+    @objc private func renameClicked() { onRename?() }
     @objc private func newClicked() { onNew?() }
+
+    @objc private func exportClicked() {
+        let menu = NSMenu()
+        for format in OutputFormat.allCases {
+            let item = NSMenuItem(title: Copy.exportTitle(format), action: #selector(exportFormat(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = format.rawValue
+            menu.addItem(item)
+        }
+        menu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: exportButton.bounds.height + 4),
+            in: exportButton
+        )
+    }
+
+    @objc private func exportFormat(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let format = OutputFormat(rawValue: raw) else { return }
+        onExport?(format)
+    }
 }
