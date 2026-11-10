@@ -9,12 +9,21 @@ enum AudioConverter {
     static func compactForUpload(_ url: URL, in directory: URL) async throws -> URL {
         if let ffmpeg = ffmpegURL {
             let out = directory.appendingPathComponent("compact-\(UUID().uuidString).mp3")
-            try await run(ffmpeg, [
-                "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
-                "-i", url.path, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", out.path
-            ])
-            Log.debug(.audio, "compacted with ffmpeg bytes=\(TempFiles.size(of: out))")
-            return out
+            do {
+                try await run(ffmpeg, [
+                    "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", url.path, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", out.path
+                ])
+                Log.debug(.audio, "compacted with ffmpeg bytes=\(TempFiles.size(of: out))")
+                return out
+            } catch is CancellationError {
+                TempFiles.remove(out)
+                throw CancellationError()
+            } catch {
+                // A broken ffmpeg install should not block the job; afconvert always ships.
+                TempFiles.remove(out)
+                Log.warning(.audio, "ffmpeg failed, falling back to afconvert")
+            }
         }
         let out = directory.appendingPathComponent("compact-\(UUID().uuidString).wav")
         try await run(URL(fileURLWithPath: "/usr/bin/afconvert"), [

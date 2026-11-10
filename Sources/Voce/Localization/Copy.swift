@@ -24,8 +24,6 @@ enum Copy {
     static var chooseFile: String { t("Scegli…", "Choose…") }
     static var chooseFileMessage: String { t("Scegli un audio da trascrivere", "Choose an audio file to transcribe") }
     static var openSettings: String { t("Apri Impostazioni…", "Open Settings…") }
-    static var revealInFinder: String { t("Mostra nel Finder", "Reveal in Finder") }
-    static var openFolder: String { t("Apri cartella", "Open folder") }
     static var done: String { t("Fatto", "Done") }
     static var back: String { t("Indietro", "Back") }
 
@@ -71,10 +69,6 @@ enum Copy {
     }
 
     static var recentTitle: String { t("Recenti", "Recent") }
-    static var recentEmpty: String {
-        t("Le trascrizioni che tieni compaiono qui, solo su questo Mac.", "Transcripts you keep appear here, on this Mac only.")
-    }
-    static var recentShowAll: String { t("Mostra tutto", "Show all") }
 
     static var setupTitle: String { t("Aggiungi la tua chiave OpenRouter", "Add your OpenRouter key") }
     static var setupBody: String {
@@ -84,7 +78,6 @@ enum Copy {
         )
     }
     static var setupButton: String { t("Configura", "Set up") }
-    static var setupLater: String { t("Più tardi", "Later") }
 
     // MARK: - Working
 
@@ -95,7 +88,6 @@ enum Copy {
 
     static var renameSpeakers: String { t("Rinomina parlanti", "Rename speakers") }
     static var export: String { t("Esporta", "Export") }
-    static var saveAs: String { t("Salva…", "Save…") }
     static var transcript: String { t("Trascrizione", "Transcript") }
     static var noSpeakers: String { t("Nessun parlante riconosciuto", "No speakers detected") }
 
@@ -138,11 +130,9 @@ enum Copy {
     static var continueAction: String { t("Continua", "Continue") }
     static var quitAction: String { t("Esci", "Quit") }
     static var closeAction: String { t("Chiudi", "Close") }
-    static var unsaved: String { t("non salvata", "not saved") }
     static var cancelled: String { t("Trascrizione annullata", "Transcription cancelled") }
     static var completed: String { t("Trascrizione completata", "Transcription complete") }
     static var copiedAnnouncement: String { t("Copiato negli appunti", "Copied to the clipboard") }
-    static var saveFailed: String { t("Non riesco a salvare il file", "Couldn't save the file") }
     static var importFailed: String { t("Non riesco a leggere il file", "Couldn't read the file") }
     static func percent(_ value: Int) -> String {
         t("\(value) per cento", "\(value) percent")
@@ -192,7 +182,6 @@ enum Copy {
     static var onboardingKeyFound: String {
         t("Ho trovato una chiave già configurata.", "A key is already configured.")
     }
-    static var onboardingNewKey: String { t("Incolla una nuova chiave", "Paste a new key") }
     static func onboardingPending(_ name: String) -> String {
         t("Appena configurato, trascrivo \(name).", "Once set up, I'll transcribe \(name).")
     }
@@ -215,7 +204,6 @@ enum Copy {
     static var keyPlaceholderSaved: String {
         t("Salvata nel Portachiavi — digita per sostituirla", "Saved in the Keychain — type to replace it")
     }
-    static var keyUnchanged: String { t("Nessuna modifica alla chiave", "Key unchanged") }
     static var keyRemovePending: String {
         t("La chiave verrà rimossa al salvataggio", "The key will be removed when you save")
     }
@@ -226,7 +214,6 @@ enum Copy {
     static var verifyKey: String { t("Verifica", "Check") }
     static var removeKey: String { t("Rimuovi", "Remove") }
     static var keyValid: String { t("Chiave valida", "Valid key") }
-    static var keyInvalid: String { t("Chiave non valida", "Invalid key") }
     static var keyChecking: String { t("Verifico…", "Checking…") }
     static func creditRemaining(_ value: String) -> String {
         t("Credito disponibile: $\(value)", "Credit available: $\(value)")
@@ -291,7 +278,6 @@ enum Copy {
 
     static var sectionAdvanced: String { t("Avanzate", "Advanced") }
     static var dataFolder: String { t("Cartella dati", "Data folder") }
-    static var logFile: String { t("Log", "Log") }
     static var openLog: String { t("Apri log", "Open log") }
     static var clearLog: String { t("Cancella log", "Clear log") }
     static var reportProblem: String { t("Segnala un problema", "Report a problem") }

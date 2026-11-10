@@ -33,7 +33,7 @@ enum CleanupPass {
         var polished: [String] = []
         polished.reserveCapacity(chunks.count)
         for (index, chunk) in chunks.enumerated() {
-            try? Task.checkCancellation()
+            if Task.isCancelled { return text }
             onProgress?(index + 1, chunks.count)
             let result = await polishChunk(
                 chunk,
