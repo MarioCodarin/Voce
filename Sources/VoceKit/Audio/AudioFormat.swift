@@ -9,12 +9,13 @@ public enum AudioFormat {
         "flac": "audio/flac",
         "aac": "audio/aac",
         "mp4": "audio/mp4",
+        "mov": "video/quicktime",
         "ogg": "audio/ogg",
         "webm": "audio/ogg"
     ]
 
     /// Extensions worth advertising in the UI.
-    public static let headline = ["m4a", "mp3", "wav", "flac", "aac"]
+    public static let headline = ["m4a", "mp3", "wav", "flac", "mp4", "mov"]
 
     /// Every accepted extension, sorted, for file pickers.
     public static var extensions: [String] { mimeTypes.keys.sorted() }

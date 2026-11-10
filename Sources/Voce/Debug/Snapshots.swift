@@ -5,7 +5,7 @@ import AppKit
 /// `VOCE_SNAPSHOT=/some/dir .build/debug/Voce`. Debug builds only.
 @MainActor
 enum Snapshots {
-    static let states = ["idle", "idle-recent", "setup", "error", "working", "waiting", "result"]
+    static let states = ["idle", "idle-history-empty", "idle-recent", "setup", "error", "working", "working-queue", "waiting", "result", "result-edit", "result-queue"]
     static let sizes: [(String, NSSize)] = [
         ("normal", NSSize(width: 760, height: 600)),
         ("small", NSSize(width: 640, height: 500))

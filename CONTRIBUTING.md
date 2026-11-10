@@ -37,6 +37,8 @@ Requirements: macOS 14+, Swift 6 (Command Line Tools are enough), and optionally
 - Errors are `TranscribeError` with a message in both languages; never leak the key, the transcript or a full path.
 - Logs are content-free: counts, durations, extensions, status codes.
 - History writes are best-effort; a failure never fails a transcription.
+- Batches run one job at a time. A fatal error (missing/invalid key, credit, network) stops the queue; a single-file failure does not.
+- Text edits update the live session on every keystroke and are written to history only when the edit finishes. Never mutate `TranscriptSegment`s from an edit; subtitles stay verbatim.
 
 ## Adding a model
 

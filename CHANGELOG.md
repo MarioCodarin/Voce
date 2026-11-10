@@ -2,6 +2,29 @@
 
 All notable changes to Voce. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — 2026-11-10
+
+### Added
+
+- Multi-file queue: drop or choose several files, processed sequentially with a compact batch list and a per-file result picker.
+- Editable transcript with an explicit Edit/Done mode. Edits apply to copied and saved text and are written back to history; subtitle segments stay untouched.
+- `⌘S` remembers the last successful export format, and the File menu reflects it.
+- Configurable global shortcut (`⌥⌘V`, `⌃⌥V`, or off) opens the file picker from any app.
+- Cross-slice speaker re-identification when a repeated phrase at a seam is at least three words long.
+- MOV/MP4 video import; video files are read as audio tracks.
+- Offline guidance that keeps the file safe and retries in place; an empty-history state when history is enabled.
+- Queue-aware discard prompts and unsaved-work protection for every transcript in a batch.
+
+### Changed
+
+- Result header can switch between completed files in a batch and surfaces batch failures without hiding the successes.
+- Batch processing stops on fatal errors (missing/invalid key, exhausted credit, no network) instead of burning through the queue.
+- Version bumped to 2.1.0 (build 3).
+
+### Tests
+
+- 103 tests, including cross-seam speaker mapping, edit persistence, shortcut settings, video formats and archive text updates.
+
 ## [2.0.0] — 2026-11-10
 
 ### Added

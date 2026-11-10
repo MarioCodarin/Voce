@@ -214,6 +214,29 @@ public struct TranscriptArchive: Sendable {
         try? write(record)
     }
 
+    /// Replaces the transcript text after a light manual edit. Segments stay untouched.
+    public func updateText(id: UUID, text: String) {
+        guard let record = try? load(id: id) else { return }
+        let updated = TranscriptRecord(
+            id: record.id,
+            createdAt: record.createdAt,
+            sourceName: record.sourceName,
+            modelID: record.modelID,
+            language: record.language,
+            speakerLabel: record.speakerLabel,
+            durationSeconds: record.durationSeconds,
+            text: text,
+            segments: record.segments,
+            speakerNames: record.speakerNames
+        )
+        try? write(updated)
+        var summaries = list()
+        if let index = summaries.firstIndex(where: { $0.id == id }) {
+            summaries[index] = updated.summary
+            try? writeIndex(summaries)
+        }
+    }
+
     public func delete(id: UUID) {
         try? FileManager.default.removeItem(at: recordURL(id))
         let remaining = list().filter { $0.id != id }

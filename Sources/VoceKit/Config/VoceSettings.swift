@@ -17,6 +17,8 @@ public enum VoceSettings {
         static let interface = "voce.interface"
         static let history = "voce.history"
         static let menuBar = "voce.menuBar"
+        static let lastExport = "voce.lastExport"
+        static let globalShortcut = "voce.globalShortcut"
     }
 
     // MARK: - Transcription
@@ -63,6 +65,18 @@ public enum VoceSettings {
     public static var menuBarEnabled: Bool {
         get { bool(Key.menuBar, default: true) }
         set { set(newValue, forKey: Key.menuBar) }
+    }
+
+    /// Global shortcut that opens the file picker from any app. Off is explicit.
+    public static var globalShortcut: GlobalShortcut {
+        get { GlobalShortcut.stored(defaults.string(forKey: Key.globalShortcut)) }
+        set { set(newValue.rawValue, forKey: Key.globalShortcut) }
+    }
+
+    /// Format used by ⌘S and preselected in the export menu.
+    public static var lastExportFormat: OutputFormat {
+        get { OutputFormat(rawValue: defaults.string(forKey: Key.lastExport) ?? "") ?? .text }
+        set { set(newValue.rawValue, forKey: Key.lastExport) }
     }
 
     // MARK: - Helpers

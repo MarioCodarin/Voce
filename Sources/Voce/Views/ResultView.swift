@@ -7,10 +7,17 @@ final class ResultView: NSView {
     var onExport: ((OutputFormat) -> Void)?
     var onRename: (() -> Void)?
     var onNew: (() -> Void)?
+    var onSelectQueueItem: ((Int) -> Void)?
+    var onTextChanged: ((String) -> Void)?
+    var onEditFinished: ((String) -> Void)?
 
     private let fileLabel = NSTextField(labelWithString: "")
     private let captionLabel = NSTextField(labelWithString: "")
     private let renameButton = LinkButton(title: "", target: nil, action: nil)
+    private let editButton = LinkButton(title: "", target: nil, action: nil)
+    private let queuePopup = NSPopUpButton()
+    private let editHint = NSTextField(wrappingLabelWithString: "")
+    private let banner = MessageBanner()
     private let exportButton = ActionButton(title: "", target: nil, action: nil)
     private let copyButton = ActionButton(title: "", target: nil, action: nil)
     private let newButton = NSButton()
@@ -21,6 +28,7 @@ final class ResultView: NSView {
 
     private var speakerLabel = "Parlante"
     private var speakerNames: [Int: String] = [:]
+    private var isEditing = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -35,16 +43,50 @@ final class ResultView: NSView {
         caption: String,
         speakerLabel: String,
         speakerNames: [Int: String],
-        speakerCount: Int
+        speakerCount: Int,
+        queue: [String] = [],
+        selected: Int? = nil
     ) {
         self.speakerLabel = speakerLabel
         self.speakerNames = speakerNames
+        endEditingWithoutCallback()
         fileLabel.stringValue = file
         captionLabel.stringValue = caption
         renameButton.isHidden = speakerCount < 1
         textView.textStorage?.setAttributedString(Self.styled(text, label: speakerLabel, names: speakerNames))
         textView.scrollToBeginningOfDocument(nil)
+        updateQueuePopup(queue, selected: selected)
         resetCopyTitle()
+    }
+
+    func updateCaption(_ caption: String) {
+        captionLabel.stringValue = caption
+    }
+
+    /// Ends an active edit and lets the controller commit it before switching transcript.
+    func commitPendingEdit() {
+        if isEditing { finishEditing() }
+    }
+
+    #if DEBUG
+    func beginEditingForPreview() { editClicked() }
+    #endif
+
+    func showBanner(_ message: String?, isError: Bool = false) {
+        banner.show(message: message, style: isError ? .error : .info)
+    }
+
+    private func updateQueuePopup(_ queue: [String], selected: Int?) {
+        queuePopup.removeAllItems()
+        guard queue.count > 1 else {
+            queuePopup.isHidden = true
+            return
+        }
+        queuePopup.addItems(withTitles: queue)
+        if let selected, queue.indices.contains(selected) {
+            queuePopup.selectItem(at: selected)
+        }
+        queuePopup.isHidden = false
     }
 
     /// Speaker turns lead with their label in semibold accent; body text stays ink.
@@ -127,11 +169,47 @@ final class ResultView: NSView {
         renameButton.font = Typo.captionStrong
         renameButton.toolTip = Copy.speakerSheetBody
 
-        let titles = NSStackView(views: [fileLabel, captionLabel, renameButton])
+        editButton.title = Copy.editTranscript
+        editButton.target = self
+        editButton.action = #selector(editClicked)
+        editButton.font = Typo.captionStrong
+        editButton.toolTip = Copy.editHelp
+
+        let links = NSStackView(views: [renameButton, editButton])
+        links.orientation = .horizontal
+        links.alignment = .centerY
+        links.spacing = Space.l
+
+        queuePopup.isHidden = true
+        queuePopup.controlSize = .small
+        queuePopup.isBordered = false
+        queuePopup.bezelStyle = .inline
+        queuePopup.contentTintColor = Palette.accentText
+        queuePopup.font = Typo.captionStrong
+        queuePopup.target = self
+        queuePopup.action = #selector(queueChanged)
+        queuePopup.setAccessibilityLabel(Copy.transcript)
+        queuePopup.translatesAutoresizingMaskIntoConstraints = false
+        queuePopup.widthAnchor.constraint(lessThanOrEqualToConstant: 260).isActive = true
+        queuePopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
+
+        editHint.stringValue = Copy.editHelp
+        editHint.font = Typo.caption
+        editHint.textColor = Palette.muted
+        editHint.alignment = .left
+        editHint.maximumNumberOfLines = 0
+        editHint.lineBreakMode = .byWordWrapping
+        editHint.preferredMaxLayoutWidth = 420
+        editHint.isHidden = true
+        editHint.widthAnchor.constraint(lessThanOrEqualToConstant: 420).isActive = true
+
+        let titles = NSStackView(views: [fileLabel, captionLabel, links, queuePopup, editHint])
         titles.orientation = .vertical
         titles.alignment = .leading
         titles.spacing = 2
         titles.setCustomSpacing(Space.s, after: captionLabel)
+        titles.setCustomSpacing(Space.s, after: links)
+        titles.setCustomSpacing(Space.s, after: queuePopup)
         titles.setContentCompressionResistancePriority(.init(250), for: .horizontal)
 
         copyButton.style(accent: true)
@@ -170,6 +248,10 @@ final class ResultView: NSView {
 
         textView.applyTranscriptStyle()
         textView.setAccessibilityLabel(Copy.transcript)
+        textView.delegate = self
+
+        banner.isHidden = true
+        banner.translatesAutoresizingMaskIntoConstraints = false
 
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
@@ -180,13 +262,13 @@ final class ResultView: NSView {
         scroll.setContentHuggingPriority(.init(1), for: .vertical)
         scroll.setContentCompressionResistancePriority(.init(1), for: .vertical)
 
-        let stack = NSStackView(views: [header, divider, scroll])
+        let stack = NSStackView(views: [header, banner, divider, scroll])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Space.m
         stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
-        for row in [header, divider, scroll] {
+        for row in [header, banner, divider, scroll] {
             row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         addSubview(stack)
@@ -207,6 +289,55 @@ final class ResultView: NSView {
     @objc private func renameClicked() { onRename?() }
     @objc private func newClicked() { onNew?() }
 
+    @objc private func editClicked() {
+        if isEditing {
+            finishEditing()
+        } else {
+            isEditing = true
+            editButton.title = Copy.finishEditing
+            editHint.isHidden = false
+            textView.isEditable = true
+            textView.isSelectable = true
+            window?.makeFirstResponder(textView)
+        }
+    }
+
+    @objc private func queueChanged() {
+        let index = queuePopup.indexOfSelectedItem
+        guard index >= 0 else { return }
+        onSelectQueueItem?(index)
+    }
+
+    private func finishEditing() {
+        guard isEditing else { return }
+        isEditing = false
+        editButton.title = Copy.editTranscript
+        editHint.isHidden = true
+        textView.isEditable = false
+        let text = textView.string
+        restylePreservingSelection()
+        onEditFinished?(text)
+    }
+
+    /// Used when a new transcript replaces the current one; edits are already committed
+    /// by the controller on every keystroke, so no callback is needed here.
+    private func endEditingWithoutCallback() {
+        guard isEditing else { return }
+        isEditing = false
+        editButton.title = Copy.editTranscript
+        editHint.isHidden = true
+        textView.isEditable = false
+    }
+
+    private func restylePreservingSelection() {
+        let selected = textView.selectedRange()
+        textView.textStorage?.setAttributedString(
+            Self.styled(textView.string, label: speakerLabel, names: speakerNames)
+        )
+        let length = textView.string.count
+        textView.setSelectedRange(NSRange(location: min(selected.location, length), length: 0))
+    }
+
     @objc private func exportClicked() {
         let menu = NSMenu()
         for format in OutputFormat.allCases {
@@ -226,5 +357,13 @@ final class ResultView: NSView {
         guard let raw = sender.representedObject as? String,
               let format = OutputFormat(rawValue: raw) else { return }
         onExport?(format)
+    }
+}
+
+
+extension ResultView: NSTextViewDelegate {
+    func textDidChange(_ notification: Notification) {
+        guard isEditing else { return }
+        onTextChanged?(textView.string)
     }
 }

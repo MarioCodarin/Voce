@@ -14,15 +14,15 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 
 | Path | Responsibility |
 | --- | --- |
-| `VoceKit/Config` | `VoceSettings` (UserDefaults), `TranscriptionModel` registry, `TranscriptionLanguage`, `InterfaceLanguage`, `Secrets`, `Glossary`, fixed `TranscriptionConfig` |
+| `VoceKit/Config` | `VoceSettings` (UserDefaults), `TranscriptionModel` registry, `TranscriptionLanguage`, `InterfaceLanguage`, `GlobalShortcut`, `Secrets`, `Glossary`, fixed `TranscriptionConfig` |
 | `VoceKit/Audio` | `AudioFormat`, `AudioChunker` (ranges + one-slice export), `AudioConverter` (ffmpeg / afconvert), `TempFiles` |
 | `VoceKit/Network` | `OpenRouterClient`, `TranscriptionRequest` (multipart or streaming JSON), `MultipartBody`, `KeyChecker`, shared `NetworkSession` |
 | `VoceKit/Transcription` | `Transcriber`, `TranscriptionStatus`, `TranscriptSegment`, `RichTranscript`, `TranscriptStitcher`, `CleanupPass`, `SubtitleFormatter`, `SpeakerRenamer`, `TranscribeError` |
 | `VoceKit/Storage` | `TranscriptArchive` + record/summary, `OutputFormat` |
 | `VoceKit/CLI` | `CLI`, `CLIArguments`, `Doctor` |
 | `VoceKit/Support` | `Log`, `VoceVersion`, `VoceLinks`, `VoceMaintenance` |
-| `Voce/Controllers` | `VoceController` (state machine), `TranscriptionJob` (generation-guarded task) |
-| `Voce/Views` | Idle, working, result, drop host/zone, recent row, banners, onboarding, settings, speaker sheet, waveform |
+| `Voce/Controllers` | `VoceController` (state machine + sequential batch), `TranscriptionJob` (generation-guarded task), `QueueItem` |
+| `Voce/Views` | Idle, working, result (queue picker + edit mode), drop host/zone, recent row, banners, onboarding, settings, speaker sheet, waveform |
 | `Voce/Theme` | Palette, spacing, radii, type, motion, buttons, progress bar, cards, pills |
 | `Voce/Localization` | `Copy`: every user-facing string in Italian and English |
 | `Voce/Debug` | Screenshot/preview hooks (debug builds only) |
@@ -35,14 +35,15 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 | `TranscriptionOutcome` | transcript, model, duration, language, speaker label, creation date, word count |
 | `TranscriptionStatus` | semantic progress stage (`.listening`, `.chunk`, `.uploading`, `.retrying`, `.polishing`, `.finished`) with localized display text |
 | `TranscriptionModel` | closed registry: OpenRouter id, captions, slice sizes, glossary route, diarization |
-| `VoceSettings` | model, audio language, cleanup, interface language, local history, menu bar |
+| `VoceSettings` | model, audio language, cleanup, interface language, local history, menu bar, global shortcut, last export format |
+| `GlobalShortcut` | global key combinations offered by the app (⌥⌘V, ⌃⌥V, off) |
 | `TranscriptionLanguage` / `InterfaceLanguage` | request language and UI language resolution |
 | `TranscriptSegment` / `RichTranscript` | speaker turns, text, timestamps, speaker indices |
 | `TranscriptStitcher` | overlap-aware merge of chunk transcripts |
 | `CleanupPass` | punctuation/casing pass, guarded by word and speaker-label checks |
 | `SubtitleFormatter` / `OutputFormat` | SRT, WebVTT, plain text rendering |
 | `SpeakerRenamer` | replace `Parlante N:` / `Speaker N:` prefixes with names |
-| `TranscriptArchive` / `TranscriptRecord` / `TranscriptSummary` | opt-in local history, `0600` files, index for fast listing |
+| `TranscriptArchive` / `TranscriptRecord` / `TranscriptSummary` | opt-in local history, `0600` files, index for fast listing, text updates after edits |
 | `KeyChecker` | live key validation and credit summary |
 | `Secrets` | key resolution (environment → Keychain → file), masking, shape check |
 | `Glossary` | bundled sample, user file, normalization, 2,000-term cap |
@@ -70,6 +71,10 @@ Transcriber.transcribe (model and language snapshotted at init)
 
 Progress: 5% preparation, 85% across slices (25% conversion, 75% upload), 10% cleanup.
 
+Batches reuse the same flow. `VoceController` keeps the queue, starts one job at a time and appends each finished session; a fatal error (missing key, unauthorized, no network) stops the batch, while a single-file failure is recorded and the queue continues. Completed sessions stay in memory for the result picker, and in history when it is enabled.
+
+At a seam, the stitcher can re-identify a chunk-local speaker when the repeated phrase is at least three words long. It maps that chunk's local speaker back to the outgoing global one before merging, so a numbering restart no longer produces a fake speaker change.
+
 ## Concurrency and cancellation
 
 - `TranscriptionJob` is `@MainActor`. It increments a generation number on every start/cancel; every event carries the generation and is dropped if stale. A cancelled or replaced job can never touch the UI.
@@ -90,6 +95,7 @@ The app is designed to stay flat on long files and idle when not working.
 - **Cheap history reads.** `index.json` holds summaries only; transcripts are loaded on open.
 - **GPU animation.** The waveform is 13 CALayers animated on the render server; it stops when the view hides. The progress slide is one Core Animation. Reduce Motion disables both.
 - **One timer, only while working.** The elapsed clock is invalidated on every screen change.
+- **Batches are sequential.** Only one slice and one upload exist at a time; completed sessions are small in-memory structs (and JSON files when history is on).
 - **Logs are cheap and bounded.** `os.Logger` plus a serial file writer; rotations at 1 MB. Debug lines are opt-in with `VOCE_LOG=debug`.
 - **Temp cleanup.** Each job owns a `voce-<UUID>` folder; `VoceMaintenance.prepareForLaunch()` removes leftovers older than 24 hours.
 
@@ -101,6 +107,7 @@ The app is designed to stay flat on long files and idle when not working.
 - `index.json` — summaries only (id, date, source name, model, language, duration, word count, speaker count).
 - Directory `0700`, files `0600`. Maximum 100 records; the oldest is pruned on save.
 - A missing or corrupt index is rebuilt from the record files.
+- A text edit rewrites the record and its summary, so the recent-list word count stays accurate.
 - History is off by default and can be cleared from Settings.
 
 `~/.config/voce/glossary.txt` — one term per line, `0600`, normalized on save. A missing user file falls back to the bundled sample.
@@ -121,10 +128,11 @@ The app is designed to stay flat on long files and idle when not working.
 - **New export format:** one case in `OutputFormat` and a renderer.
 - **New screen:** an `NSView` in `Views/`, a case in `VoceController.State` and a branch in `render`.
 - **New setting:** a key in `VoceSettings`, a control in Settings, and (if it affects a job) a snapshot in `Transcriber`.
+- **New batch state:** `QueueItem` in the app target, the queue methods in `VoceController`, and a matching row in `WorkingView` / picker in `ResultView`.
 
 ## Testing
 
-More than 90 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching, subtitle timestamps, speaker renaming, cleanup guards and chunking, archive save/load/prune/rebuild, settings defaults and migration, key parsing, and output formats.
+103 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching and cross-seam re-identification, subtitle timestamps, speaker renaming, cleanup guards and chunking, archive save/load/prune/rebuild/text updates, settings defaults and migration, global shortcut options, key parsing, video formats, and output formats.
 
 `./scripts/test.sh` handles the Command Line Tools-only setup, where the `Testing` macro plugin needs an explicit path and framework search path. With Xcode selected, `swift test` is enough.
 
@@ -134,4 +142,4 @@ The app target has no test target; screens are verified with debug snapshots:
 VOCE_SNAPSHOT=/tmp/voce-shots .build/debug/Voce
 ```
 
-This renders idle, recent, setup, error, working, waiting and result at two window sizes and both appearances, plus Settings and onboarding. It exits without touching the real display.
+This renders idle, empty history, recent, setup, error, working, working with a batch, waiting, result, editing, and batch result at two window sizes and both appearances, plus Settings and onboarding. It exits without touching the real display.

@@ -103,6 +103,20 @@ struct TranscriptArchiveTests {
         #expect(loaded.namesBySpeaker == [1: "Giulia", 2: "Luca"])
     }
 
+    @Test func updatesTranscriptTextWithoutTouchingSegments() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let saved = record("testo originale")
+        archive.save(saved)
+        archive.updateText(id: saved.id, text: "testo corretto a mano")
+
+        let loaded = try #require(try archive.load(id: saved.id))
+        #expect(loaded.text == "testo corretto a mano")
+        #expect(loaded.segments.count == 2)
+        #expect(archive.list().first?.wordCount == 4)
+    }
+
     @Test func filesAreOwnerOnly() throws {
         let (archive, directory) = try makeArchive()
         defer { try? FileManager.default.removeItem(at: directory) }

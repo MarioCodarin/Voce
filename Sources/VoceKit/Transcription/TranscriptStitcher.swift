@@ -5,16 +5,22 @@ import Foundation
 /// Chunks overlap by a couple of seconds, so the end of one transcript often repeats at the
 /// start of the next. When that happens the repeat is dropped and the two turns merge, but only
 /// when both sides share the speaker (untagged counts as sharing with untagged).
+///
+/// Speaker numbers are chunk-local. At a seam with a long enough repeated phrase, a changed
+/// number usually means the provider restarted numbering rather than a new voice, so the
+/// incoming chunk's speaker is re-identified with the outgoing one.
 enum TranscriptStitcher {
     /// Longest repeat (in words) we look for at a seam.
     private static let maxOverlapWords = 20
     /// Shorter matches are too likely to be coincidence ("e il", "di un").
     private static let minOverlapWords = 2
+    /// A repeated phrase this long is strong evidence that the same person continues.
+    private static let speakerResolutionWords = 3
 
     static func stitchSegments(_ parts: [[TranscriptSegment]]) -> [TranscriptSegment] {
         var result: [TranscriptSegment] = []
         for part in parts {
-            let segments = part.map { segment -> TranscriptSegment in
+            var segments = part.map { segment -> TranscriptSegment in
                 var copy = segment
                 copy.text = copy.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 return copy
@@ -26,8 +32,23 @@ enum TranscriptStitcher {
             }
 
             let overlap = overlapWordCount(tail: tail.text, head: head.text)
-            if overlap > 0, tail.speaker == head.speaker {
-                let rest = dropLeadingWords(head.text, count: overlap)
+            if overlap >= speakerResolutionWords,
+               let outgoing = tail.speaker,
+               let incoming = head.speaker,
+               outgoing != incoming {
+                // The overlap is substantial: the same voice was split by the chunk boundary,
+                // so the local number changed. Map the incoming chunk's first speaker back.
+                segments = segments.map { segment in
+                    guard segment.speaker == incoming else { return segment }
+                    var copy = segment
+                    copy.speaker = outgoing
+                    return copy
+                }
+            }
+
+            guard let alignedHead = segments.first else { continue }
+            if overlap > 0, tail.speaker == alignedHead.speaker {
+                let rest = dropLeadingWords(alignedHead.text, count: overlap)
                 if !rest.isEmpty {
                     tail.text += " " + rest
                     result[result.count - 1] = tail

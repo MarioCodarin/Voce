@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var pendingFile: URL?
     private var preferences: PreferencesWindowController?
     private var statusItem: StatusItemController?
+    private var globalHotKey: GlobalHotKey?
     /// Set once the user agreed to close, so quitting afterwards doesn't ask a second time.
     private var closeConfirmed = false
 
@@ -50,6 +51,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         self.controller = controller
 
         statusItem = StatusItemController(controller: controller, appDelegate: self)
+        configureGlobalShortcut()
+
+        NotificationCenter.default.addObserver(
+            forName: GlobalHotKey.pressed,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let controller = self.controller else { return }
+                self.showMainWindow(nil)
+                controller.chooseFile()
+            }
+        }
 
         NotificationCenter.default.addObserver(
             forName: VoceSettings.didChange,
@@ -61,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 NSApp.mainMenu = MainMenu.build()
                 self.statusItem?.setVisible(VoceSettings.menuBarEnabled)
                 self.statusItem?.refreshMenu()
+                self.configureGlobalShortcut()
             }
         }
 
@@ -115,6 +130,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     // MARK: - Actions
+
+    private func configureGlobalShortcut() {
+        if globalHotKey == nil { globalHotKey = GlobalHotKey() }
+        globalHotKey?.apply(VoceSettings.globalShortcut)
+    }
 
     @objc func showMainWindow(_ sender: Any?) {
         window?.makeKeyAndOrderFront(nil)

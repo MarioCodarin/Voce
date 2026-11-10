@@ -54,6 +54,26 @@ struct TranscriptStitcherTests {
         #expect(stitched[0].text.hasSuffix("che abbiamo davanti"))
     }
 
+    @Test func reidentifiesSpeakerWhenNumberingRestartsAtASeam() {
+        let stitched = TranscriptStitcher.stitchSegments([
+            [S(1, "Oggi parliamo del progetto e delle scadenze", 0)],
+            [S(2, "del progetto e delle scadenze che abbiamo davanti", 90)]
+        ])
+        #expect(stitched.count == 1)
+        #expect(stitched[0].speaker == 1)
+        #expect(stitched[0].text.hasSuffix("che abbiamo davanti"))
+    }
+
+    @Test func shortOverlapDoesNotMergeDifferentSpeakers() {
+        let stitched = TranscriptStitcher.stitchSegments([
+            [S(1, "Ci vediamo alle nove", 0)],
+            [S(2, "alle nove poi andiamo", 90)]
+        ])
+        #expect(stitched.count == 2)
+        #expect(stitched[0].speaker == 1)
+        #expect(stitched[1].speaker == 2)
+    }
+
     @Test func keepsSpeakerChange() {
         let stitched = TranscriptStitcher.stitchSegments([
             [S(1, "Buongiorno a tutti", 0)],

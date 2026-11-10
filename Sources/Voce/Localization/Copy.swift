@@ -69,6 +69,10 @@ enum Copy {
     }
 
     static var recentTitle: String { t("Recenti", "Recent") }
+    static var recentEmpty: String {
+        t("Le trascrizioni che tieni compaiono qui, solo su questo Mac.",
+          "Transcripts you keep appear here, on this Mac only.")
+    }
 
     static var setupTitle: String { t("Aggiungi la tua chiave OpenRouter", "Add your OpenRouter key") }
     static var setupBody: String {
@@ -87,9 +91,37 @@ enum Copy {
     // MARK: - Result
 
     static var renameSpeakers: String { t("Rinomina parlanti", "Rename speakers") }
+    static var editTranscript: String { t("Modifica", "Edit") }
+    static var finishEditing: String { t("Fine", "Done") }
+    static var editHelp: String {
+        t("Modifiche a copia e salvataggio; i sottotitoli restano originali.",
+          "Edits apply to copy and save; subtitles keep the original.")
+    }
     static var export: String { t("Esporta", "Export") }
     static var transcript: String { t("Trascrizione", "Transcript") }
     static var noSpeakers: String { t("Nessun parlante riconosciuto", "No speakers detected") }
+    static func queuePosition(_ index: Int, _ total: Int) -> String {
+        t("File \(index) di \(total)", "File \(index) of \(total)")
+    }
+    static func queueMore(_ count: Int) -> String {
+        t("+\(count) altri file", "+\(count) more files")
+    }
+    static func queueCompleted(_ count: Int) -> String {
+        t("\(count) file trascritti", "\(count) files transcribed")
+    }
+    static func queuePartial(_ done: Int, _ failed: Int) -> String {
+        t("\(done) file trascritti · \(failed) non riusciti", "\(done) transcribed · \(failed) failed")
+    }
+    static func queueFailedAll(_ count: Int) -> String {
+        t("Nessun file trascritto · \(count) errori", "No files transcribed · \(count) errors")
+    }
+    static func queueCancelled(_ done: Int) -> String {
+        t("Coda interrotta · \(done) file completati", "Queue stopped · \(done) files completed")
+    }
+    static func offline(_ name: String) -> String {
+        t("Rete assente. \(name) resta qui: riprova quando sei online.",
+          "No connection. \(name) is safe here: try again when you are online.")
+    }
 
     static func caption(words: Int, model: TranscriptionModel, duration: Double, speakers: Int) -> String {
         var parts = [wordCount(words), model.displayName, Copy.duration(duration)]
@@ -122,6 +154,10 @@ enum Copy {
     static var discardWorkingTitle: String { t("Trascrizione in corso", "Transcription in progress") }
     static var discardWorkingBody: String {
         t("Se continui, la trascrizione in corso verrà interrotta.", "If you continue, the current transcription will be stopped.")
+    }
+    static var discardQueueBody: String {
+        t("Se continui, la trascrizione in corso e i file in coda verranno interrotti.",
+          "If you continue, the current transcription and queued files will be stopped.")
     }
     static var discardResultTitle: String { t("Trascrizione non salvata", "Transcript not saved") }
     static var discardResultBody: String {
@@ -270,8 +306,13 @@ enum Copy {
         t("Impossibile leggere il glossario: non verrà sovrascritto.", "The glossary can't be read: it won't be overwritten.")
     }
 
-    static var sectionMenuBar: String { t("Barra dei menu", "Menu bar") }
+    static var sectionMenuBar: String { t("Barra e scorciatoie", "Menu bar and shortcuts") }
     static var menuBarToggle: String { t("Mostra Voce nella barra dei menu", "Show Voce in the menu bar") }
+    static var globalShortcutLabel: String { t("Scorciatoia globale", "Global shortcut") }
+    static var globalShortcutHelp: String {
+        t("Apre il selettore file da qualsiasi app. Se il sistema la rifiuta, scegline un'altra.",
+          "Opens the file picker from any app. If the system refuses it, choose another.")
+    }
     static var menuBarHelp: String {
         t("Apri Voce e trascina un file senza cercare la finestra.", "Open Voce and drop a file without hunting for the window.")
     }
@@ -306,7 +347,13 @@ enum Copy {
     static var menuFile: String { t("File", "File") }
     static var menuOpenAudio: String { t("Apri audio…", "Open audio…") }
     static var menuCopyTranscript: String { t("Copia trascrizione", "Copy transcript") }
-    static var menuSaveTranscript: String { t("Salva .txt…", "Save .txt…") }
+    static func menuSaveTranscript(_ format: OutputFormat) -> String {
+        switch format {
+        case .text: t("Salva .txt…", "Save .txt…")
+        case .srt: t("Salva .srt…", "Save .srt…")
+        case .vtt: t("Salva .vtt…", "Save .vtt…")
+        }
+    }
     static var menuExportSRT: String { t("Esporta SRT…", "Export SRT…") }
     static var menuExportVTT: String { t("Esporta WebVTT…", "Export WebVTT…") }
     static var menuRenameSpeakers: String { t("Rinomina parlanti…", "Rename speakers…") }

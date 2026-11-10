@@ -7,12 +7,31 @@ import VoceKit
 @MainActor
 final class VoceController: NSViewController {
     private struct Session {
+        let id: UUID
         var outcome: TranscriptionOutcome
         var sourceName: String
         var sourceURL: URL?
         var speakerNames: [Int: String]
         var recordID: UUID?
         var kept: Bool
+
+        init(
+            id: UUID = UUID(),
+            outcome: TranscriptionOutcome,
+            sourceName: String,
+            sourceURL: URL?,
+            speakerNames: [Int: String],
+            recordID: UUID?,
+            kept: Bool
+        ) {
+            self.id = id
+            self.outcome = outcome
+            self.sourceName = sourceName
+            self.sourceURL = sourceURL
+            self.speakerNames = speakerNames
+            self.recordID = recordID
+            self.kept = kept
+        }
     }
 
     private enum State {
@@ -24,9 +43,18 @@ final class VoceController: NSViewController {
     private let job = TranscriptionJob()
     let archive = TranscriptArchive()
     private var state = State.idle
-    private var sourceURL: URL?
     private var onboarding: OnboardingWindowController?
-    private var pendingAfterOnboarding: URL?
+    private var pendingAfterOnboarding: [URL] = []
+
+    // Sequential batch state. The queue survives between files, not between windows.
+    private var queueURLs: [URL] = []
+    private var queueItems: [QueueItem] = []
+    private var nextQueueIndex = 0
+    private var completedSessions: [Session] = []
+    private var queueFailures: [String] = []
+    private var failedURLs: [URL] = []
+    private var queueCancelled = false
+    private var lastFailure: Error?
 
     private let idleView = IdleView()
     private let workingView = WorkingView()
@@ -41,7 +69,7 @@ final class VoceController: NSViewController {
         let host = DropHostView(frame: NSRect(origin: .zero, size: Layout.defaultWindow))
         host.onTargetChange = { [weak self] targeted in self?.idleView.setDropTargeted(targeted) }
         // Hop out of the drag callback before any modal alert.
-        host.onDrop = { [weak self] urls in DispatchQueue.main.async { self?.handleDrop(urls) } }
+        host.onDrop = { [weak self] urls in DispatchQueue.main.async { self?.open(urls: urls) } }
         host.onRejected = { [weak self] urls in DispatchQueue.main.async { self?.handleRejected(urls) } }
         view = host
     }
@@ -68,6 +96,9 @@ final class VoceController: NSViewController {
         resultView.onExport = { [weak self] format in self?.export(format) }
         resultView.onRename = { [weak self] in self?.renameSpeakers() }
         resultView.onNew = { [weak self] in self?.newTranscription() }
+        resultView.onSelectQueueItem = { [weak self] index in self?.selectQueueSession(index) }
+        resultView.onTextChanged = { [weak self] text in self?.transcriptTextChanged(text) }
+        resultView.onEditFinished = { [weak self] text in self?.commitEditedText(text) }
 
         NotificationCenter.default.addObserver(
             forName: VoceSettings.didChange,
@@ -85,20 +116,27 @@ final class VoceController: NSViewController {
     /// Whether closing the window or quitting would throw work away.
     var hasUnsavedWork: Bool {
         switch state {
-        case .idle: false
-        case .working: true
-        case .done(let session): !session.kept
+        case .idle:
+            return false
+        case .working:
+            return true
+        case .done(let session):
+            if !session.kept { return true }
+            // A batch can contain earlier transcripts that were never copied or exported.
+            return completedSessions.contains { !$0.kept }
         }
     }
 
     /// Asks before discarding a running job or an unkept transcript. True means go ahead.
     func confirmDiscard(action: String) -> Bool {
+        // An in-progress edit is live in the state but only written to history on finish.
+        resultView.commitPendingEdit()
         guard hasUnsavedWork else { return true }
         let alert = NSAlert()
         switch state {
         case .working:
             alert.messageText = Copy.discardWorkingTitle
-            alert.informativeText = Copy.discardWorkingBody
+            alert.informativeText = queueURLs.count > 1 ? Copy.discardQueueBody : Copy.discardWorkingBody
         default:
             alert.messageText = Copy.discardResultTitle
             alert.informativeText = Copy.discardResultBody
@@ -109,14 +147,28 @@ final class VoceController: NSViewController {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
-    /// Starts transcribing `url`, asking for the key first when none is configured.
+    /// Starts transcribing one file, asking for the key first when none is configured.
     func open(_ url: URL) {
+        open(urls: [url])
+    }
+
+    /// Enqueues several files and processes them one after another.
+    func open(urls: [URL]) {
+        resultView.commitPendingEdit()
+        let supported = urls.filter { url in
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            return !isDirectory && AudioFormat.isSupported(extension: url.pathExtension)
+        }
+        guard !supported.isEmpty else {
+            idleView.show(message: TranscribeError.unsupportedFormat.message(for: Copy.lang), isError: true)
+            return
+        }
         guard Secrets.hasKey else {
-            presentOnboarding(pending: url)
+            presentOnboarding(pending: supported)
             return
         }
         guard confirmDiscard(action: Copy.continueAction) else { return }
-        start(url)
+        startQueue(supported)
     }
 
     func showPreferences() {
@@ -131,15 +183,34 @@ final class VoceController: NSViewController {
 
     // MARK: - Job lifecycle
 
-    private func start(_ url: URL) {
-        sourceURL = url
-        let file = url.lastPathComponent
+    private func startQueue(_ urls: [URL]) {
+        job.cancel()
+        queueURLs = urls
+        queueItems = urls.map { QueueItem(name: $0.lastPathComponent, state: .pending) }
+        completedSessions = []
+        queueFailures = []
+        failedURLs = []
+        queueCancelled = false
+        lastFailure = nil
+        nextQueueIndex = 0
+        startNext()
+    }
+
+    private func startNext() {
+        guard nextQueueIndex < queueURLs.count else {
+            finishQueue()
+            return
+        }
+        let index = nextQueueIndex
+        let url = queueURLs[index]
+        queueItems[index].state = .active
+
         let model = VoceSettings.model
         let language = VoceSettings.language
         let label = language.speakerLabel(for: Copy.lang)
         let cleanup = VoceSettings.cleanupEnabled
 
-        workingView.begin(file: file, model: model)
+        workingView.begin(file: url.lastPathComponent, model: model, queue: queueItems)
         render(.working)
         job.start(
             url,
@@ -153,53 +224,118 @@ final class VoceController: NSViewController {
             case .progress(let value, let status):
                 workingView.update(status: status, progress: value)
             case .finished(let outcome):
-                notifyIfBackground()
-                finish(outcome, file: file, sourceURL: url)
+                finish(outcome, file: url, index: index)
             case .failed(let error):
-                notifyIfBackground()
-                fail(error, file: url)
+                fail(error, file: url, index: index)
             }
         }
     }
 
-    private func finish(_ outcome: TranscriptionOutcome, file: String, sourceURL: URL) {
+    private func finish(_ outcome: TranscriptionOutcome, file: URL, index: Int) {
+        queueItems[index].state = .done
         var recordID: UUID?
         if VoceSettings.historyEnabled {
-            let record = TranscriptRecord(outcome: outcome, sourceName: file)
+            let record = TranscriptRecord(outcome: outcome, sourceName: file.lastPathComponent)
             if archive.save(record) { recordID = record.id }
         }
         let session = Session(
             outcome: outcome,
-            sourceName: file,
-            sourceURL: sourceURL,
+            sourceName: file.lastPathComponent,
+            sourceURL: file,
             speakerNames: [:],
             recordID: recordID,
             kept: recordID != nil
         )
-        render(.done(session))
-        Announcer.say(Copy.completed)
+        completedSessions.append(session)
+        nextQueueIndex = index + 1
+        workingView.updateQueue(queueItems)
         postHistoryChanged()
         refreshIdle()
+
+        if nextQueueIndex < queueURLs.count {
+            startNext()
+        } else {
+            finishQueue()
+        }
+    }
+
+    private func finishQueue() {
+        notifyIfBackground()
+        if !completedSessions.isEmpty {
+            render(.done(completedSessions[completedSessions.count - 1]))
+            if completedSessions.count > 1 {
+                Announcer.say(Copy.queueCompleted(completedSessions.count))
+            } else {
+                Announcer.say(Copy.completed)
+            }
+            return
+        }
+
+        render(.idle)
+        let retry = failedURLs
+        let message: String
+        if queueCancelled {
+            message = Copy.cancelled
+        } else if queueFailures.count == 1 {
+            message = queueFailures[0]
+        } else if queueFailures.isEmpty {
+            message = Copy.cancelled
+        } else {
+            message = Copy.queueFailedAll(queueFailures.count)
+        }
+        let actionTitle: String?
+        let action: (() -> Void)?
+        switch lastFailure as? TranscribeError {
+        case .missingKey?:
+            actionTitle = Copy.setupButton
+            action = { [weak self] in self?.presentOnboarding(pending: retry) }
+        case .unauthorized?, .insufficientCredit?:
+            actionTitle = Copy.openSettings
+            action = { [weak self] in self?.showPreferences() }
+        default:
+            actionTitle = retry.isEmpty ? nil : Copy.retry
+            action = { [weak self] in self?.startQueue(retry) }
+        }
+        idleView.show(message: message, actionTitle: actionTitle, action: action)
     }
 
     @objc func cancelWork() {
         guard case .working = state else { return }
         job.cancel()
-        render(.idle)
-        idleView.show(message: Copy.cancelled, isError: false)
+        queueCancelled = true
+        nextQueueIndex = queueURLs.count
+        if completedSessions.isEmpty {
+            render(.idle)
+            idleView.show(message: Copy.cancelled, isError: false)
+        } else {
+            render(.done(completedSessions[completedSessions.count - 1]))
+        }
+    }
+
+    private func resetQueue() {
+        job.cancel()
+        queueURLs = []
+        queueItems = []
+        completedSessions = []
+        queueFailures = []
+        failedURLs = []
+        queueCancelled = false
+        lastFailure = nil
+        nextQueueIndex = 0
     }
 
     @objc func newTranscription() {
+        resultView.commitPendingEdit()
         guard confirmDiscard(action: Copy.newTranscript) else { return }
-        job.cancel()
-        sourceURL = nil
+        resetQueue()
         render(.idle)
         refreshIdle()
     }
 
     @objc func showHistory() {
+        resultView.commitPendingEdit()
         guard confirmDiscard(action: Copy.menuShowHistory) else { return }
-        job.cancel()
+        resetQueue()
         render(.idle)
         refreshIdle()
     }
@@ -208,17 +344,18 @@ final class VoceController: NSViewController {
 
     @objc func chooseFile() {
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         // `.audio` alone greys out containers like mp4 and webm that Voce does accept.
         let extra = AudioFormat.extensions.compactMap { UTType(filenameExtension: $0) }
         panel.allowedContentTypes = [.audio] + extra
         panel.message = Copy.chooseFileMessage
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        open(url)
+        guard panel.runModal() == .OK else { return }
+        open(urls: panel.urls)
     }
 
     @objc func copyTranscript() {
+        resultView.commitPendingEdit()
         guard var session = currentSession else { return }
         let text = SpeakerRenamer.apply(
             session.outcome.transcript.text,
@@ -228,12 +365,12 @@ final class VoceController: NSViewController {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         session.kept = true
-        state = .done(session)
+        replaceSession(session)
         resultView.flashCopied()
     }
 
     @objc func saveTranscript() {
-        export(.text)
+        export(VoceSettings.lastExportFormat)
     }
 
     @objc func exportSRT() {
@@ -245,6 +382,7 @@ final class VoceController: NSViewController {
     }
 
     func export(_ format: OutputFormat) {
+        resultView.commitPendingEdit()
         guard var session = currentSession else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
@@ -259,7 +397,8 @@ final class VoceController: NSViewController {
         do {
             try content.write(to: destination, atomically: true, encoding: .utf8)
             session.kept = true
-            state = .done(session)
+            replaceSession(session)
+            VoceSettings.lastExportFormat = format
             NSWorkspace.shared.activateFileViewerSelecting([destination])
             Log.info(.app, "exported \(format.rawValue) words=\(session.outcome.wordCount)")
         } catch {
@@ -277,11 +416,11 @@ final class VoceController: NSViewController {
     }
 
     private func openRecent(_ summary: TranscriptSummary) {
+        resultView.commitPendingEdit()
         guard confirmDiscard(action: Copy.continueAction) else { return }
-        job.cancel()
+        resetQueue()
         do {
             guard let record = try archive.load(id: summary.id) else { return }
-            sourceURL = nil
             let session = Session(
                 outcome: record.outcome,
                 sourceName: record.sourceName,
@@ -300,6 +439,7 @@ final class VoceController: NSViewController {
     // MARK: - Speaker names
 
     @objc func renameSpeakers() {
+        resultView.commitPendingEdit()
         guard let session = currentSession else { return }
         let indices = session.outcome.transcript.speakerIndices
         guard !indices.isEmpty else {
@@ -317,19 +457,8 @@ final class VoceController: NSViewController {
                 self.archive.updateSpeakerNames(id: id, names: names)
                 updated.kept = true
             }
-            self.state = .done(updated)
-            self.resultView.show(
-                file: updated.sourceName,
-                text: SpeakerRenamer.apply(
-                    updated.outcome.transcript.text,
-                    names: names,
-                    label: updated.outcome.speakerLabel
-                ),
-                caption: self.caption(for: updated.outcome),
-                speakerLabel: updated.outcome.speakerLabel,
-                speakerNames: names,
-                speakerCount: updated.outcome.transcript.speakerIndices.count
-            )
+            self.replaceSession(updated)
+            self.render(.done(updated))
             self.postHistoryChanged()
         }
         if let window = view.window {
@@ -339,27 +468,29 @@ final class VoceController: NSViewController {
 
     // MARK: - Onboarding
 
-    func presentOnboarding(pending: URL? = nil) {
+    func presentOnboarding(pending: [URL]? = nil) {
         if let onboarding {
-            pendingAfterOnboarding = pending
+            if let pending { pendingAfterOnboarding = pending }
             onboarding.window?.makeKeyAndOrderFront(nil)
             return
         }
         if let pending { pendingAfterOnboarding = pending }
-        let controller = OnboardingWindowController(pendingFileName: pendingAfterOnboarding?.lastPathComponent)
+        let first = pendingAfterOnboarding.first?.lastPathComponent
+        let extra = pendingAfterOnboarding.count > 1 ? pendingAfterOnboarding.count - 1 : 0
+        let pendingLabel = first.map { extra > 0 ? "\($0)  +\(extra)" : $0 }
+        let controller = OnboardingWindowController(pendingFileName: pendingLabel)
         controller.onFinish = { [weak self] in
             guard let self else { return }
+            let files = self.pendingAfterOnboarding
+            self.pendingAfterOnboarding = []
             self.dismissOnboarding()
             self.refreshIdle()
-            if let file = self.pendingAfterOnboarding {
-                self.pendingAfterOnboarding = nil
-                self.open(file)
-            }
+            if !files.isEmpty { self.open(urls: files) }
         }
         controller.onSkip = { [weak self] in
             guard let self else { return }
+            self.pendingAfterOnboarding = []
             self.dismissOnboarding()
-            self.pendingAfterOnboarding = nil
             self.refreshIdle()
         }
         onboarding = controller
@@ -380,23 +511,41 @@ final class VoceController: NSViewController {
 
     // MARK: - Errors
 
-    private func fail(_ error: Error, file: URL) {
-        render(.idle)
+    private func fail(_ error: Error, file: URL, index: Int) {
+        queueItems[index].state = .failed
+        let name = file.lastPathComponent
         let detail = (error as? TranscribeError)?.message(for: Copy.lang) ?? error.localizedDescription
-        let message = "\(file.lastPathComponent): \(detail)"
-        switch error as? TranscribeError {
-        case .missingKey?:
-            idleView.show(message: message, actionTitle: Copy.setupButton) { [weak self] in
-                self?.presentOnboarding(pending: file)
-            }
-        case .unauthorized?, .insufficientCredit?:
-            idleView.show(message: message, actionTitle: Copy.openSettings) { [weak self] in
-                self?.showPreferences()
-            }
+        let message: String
+        if error as? TranscribeError == .network {
+            message = Copy.offline(name)
+        } else {
+            message = "\(name): \(detail)"
+        }
+        queueFailures.append(message)
+        failedURLs.append(file)
+        lastFailure = error
+        nextQueueIndex = index + 1
+        workingView.updateQueue(queueItems)
+
+        if isFatal(error) {
+            // No point burning through the rest of the queue with a bad key or no network.
+            failedURLs = Array(queueURLs[index...])
+            nextQueueIndex = queueURLs.count
+            finishQueue()
+        } else if nextQueueIndex < queueURLs.count {
+            startNext()
+        } else {
+            finishQueue()
+        }
+    }
+
+    private func isFatal(_ error: Error) -> Bool {
+        guard let error = error as? TranscribeError else { return false }
+        switch error {
+        case .missingKey, .unauthorized, .insufficientCredit, .network:
+            return true
         default:
-            idleView.show(message: message, actionTitle: Copy.retry) { [weak self] in
-                self?.start(file)
-            }
+            return false
         }
     }
 
@@ -406,11 +555,6 @@ final class VoceController: NSViewController {
         } else {
             NSAlert(error: error).runModal()
         }
-    }
-
-    private func handleDrop(_ urls: [URL]) {
-        guard let first = urls.first else { return }
-        open(first)
     }
 
     private func handleRejected(_: [URL]) {
@@ -453,16 +597,73 @@ final class VoceController: NSViewController {
                 names: session.speakerNames,
                 label: session.outcome.speakerLabel
             )
+            let selected = completedSessions.firstIndex { $0.id == session.id }
             resultView.show(
                 file: session.sourceName,
                 text: text,
                 caption: caption(for: session.outcome),
                 speakerLabel: session.outcome.speakerLabel,
                 speakerNames: session.speakerNames,
-                speakerCount: session.outcome.transcript.speakerIndices.count
+                speakerCount: session.outcome.transcript.speakerIndices.count,
+                queue: completedSessions.map(\.sourceName),
+                selected: selected
             )
+            let (banner, isError) = queueBanner()
+            resultView.showBanner(banner, isError: isError)
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
+    }
+
+    private func replaceSession(_ session: Session) {
+        if let index = completedSessions.firstIndex(where: { $0.id == session.id }) {
+            completedSessions[index] = session
+        }
+        state = .done(session)
+    }
+
+    private func selectQueueSession(_ index: Int) {
+        guard completedSessions.indices.contains(index) else { return }
+        resultView.commitPendingEdit()
+        render(.done(completedSessions[index]))
+    }
+
+    /// Fires on every keystroke while editing. The state stays current for copy/export
+    /// without a full re-render, so the caret does not jump.
+    private func transcriptTextChanged(_ text: String) {
+        guard var session = currentSession else { return }
+        session.outcome.transcript.text = text
+        session.kept = false
+        replaceSession(session)
+    }
+
+    /// Commits a finished edit to the archive and refreshes the word-count caption.
+    private func commitEditedText(_ text: String) {
+        guard var session = currentSession else { return }
+        session.outcome.transcript.text = text
+        if let id = session.recordID {
+            archive.updateText(id: id, text: text)
+            session.kept = true
+        }
+        replaceSession(session)
+        resultView.updateCaption(caption(for: session.outcome))
+        postHistoryChanged()
+    }
+
+    private func queueBanner() -> (String?, Bool) {
+        guard !completedSessions.isEmpty else { return (nil, false) }
+        if queueFailures.count == 1 {
+            return (queueFailures[0], true)
+        }
+        if !queueFailures.isEmpty {
+            return (Copy.queuePartial(completedSessions.count, queueFailures.count), true)
+        }
+        if queueCancelled {
+            return (Copy.queueCancelled(completedSessions.count), false)
+        }
+        if completedSessions.count > 1 {
+            return (Copy.queueCompleted(completedSessions.count), false)
+        }
+        return (nil, false)
     }
 
     private func caption(for outcome: TranscriptionOutcome) -> String {
@@ -574,6 +775,15 @@ extension VoceController {
                 recent: recent,
                 historyEnabled: true
             )
+        case "idle-history-empty":
+            render(.idle)
+            idleView.update(
+                hasKey: true,
+                model: .maiTranscribe2,
+                language: .italian,
+                recent: [],
+                historyEnabled: true
+            )
         case "setup":
             render(.idle)
             idleView.update(
@@ -597,7 +807,18 @@ extension VoceController {
             } else {
                 workingView.update(status: .uploading(index: 3, total: 5), progress: 0.55)
             }
+        case "working-queue":
+            let queue = [
+                QueueItem(name: "Intervista di esempio.m4a", state: .done),
+                QueueItem(name: "Riunione del board.m4a", state: .active),
+                QueueItem(name: "Nota vocale.m4a", state: .pending),
+                QueueItem(name: "Lezione di prova.m4a", state: .pending)
+            ]
+            workingView.begin(file: "Riunione del board.m4a", model: .maiTranscribe2, queue: queue)
+            render(.working)
+            workingView.update(status: .chunk(index: 2, total: 3), progress: 0.36)
         case "result":
+            resetQueue()
             let paragraph = "Buongiorno a tutti e grazie di essere qui. Oggi parleremo di come costruire una piccola app per il Mac che trascrive l'audio in italiano, partendo da un file registrato con il telefono. La parte più difficile non è il riconoscimento, ma tutto quello che c'è intorno: file lunghi, rete instabile, errori comprensibili. "
             let outcome = TranscriptionOutcome(
                 transcript: RichTranscript(segments: [
@@ -616,6 +837,52 @@ extension VoceController {
                 kept: false
             )
             render(.done(session))
+        case "result-edit":
+            resetQueue()
+            let outcome = TranscriptionOutcome(
+                transcript: RichTranscript(segments: [
+                    TranscriptSegment(speaker: 1, text: "Ciao a tutti, questa è una prova di modifica del testo trascritto. Puoi correggere un nome o una frase senza toccare i sottotitoli.", start: 0),
+                    TranscriptSegment(speaker: 2, text: "Perfetto, così il testo copiato e salvato è sempre quello giusto.", start: 20)
+                ]),
+                model: .maiTranscribe2,
+                durationSeconds: 90
+            )
+            let session = Session(
+                outcome: outcome,
+                sourceName: "Intervista di esempio.m4a",
+                sourceURL: nil,
+                speakerNames: [1: "Anna", 2: "Marco"],
+                recordID: nil,
+                kept: false
+            )
+            render(.done(session))
+            resultView.beginEditingForPreview()
+        case "result-queue":
+            resetQueue()
+            let paragraph = "Buongiorno a tutti e grazie di essere qui. Oggi parleremo del progetto, delle scadenze e delle prossime attività. "
+            let names = ["Intervista di esempio.m4a", "Riunione del board.m4a", "Nota vocale.m4a"]
+            for (index, name) in names.enumerated() {
+                let outcome = TranscriptionOutcome(
+                    transcript: RichTranscript(segments: [
+                        TranscriptSegment(speaker: 1, text: String(repeating: paragraph, count: 2), start: 0),
+                        TranscriptSegment(speaker: 2, text: "Chiudo io con una nota: la prossima riunione è giovedì.", start: 120)
+                    ]),
+                    model: .maiTranscribe2,
+                    durationSeconds: 600
+                )
+                completedSessions.append(Session(
+                    outcome: outcome,
+                    sourceName: name,
+                    sourceURL: nil,
+                    speakerNames: [1: "Anna", 2: "Marco"],
+                    recordID: nil,
+                    kept: index == 0
+                ))
+            }
+            queueURLs = names.map { URL(fileURLWithPath: "/tmp/\($0)") }
+            queueItems = names.map { QueueItem(name: $0, state: .done) }
+            nextQueueIndex = names.count
+            if let last = completedSessions.last { render(.done(last)) }
         default:
             break
         }

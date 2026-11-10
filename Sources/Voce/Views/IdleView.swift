@@ -28,6 +28,7 @@ final class IdleView: NSView {
     private let recentCount = NSTextField(labelWithString: "")
     private let recentCard = CardView()
     private let recentRows = NSStackView()
+    private let recentEmptyLabel = NSTextField(wrappingLabelWithString: "")
 
     private var hasKey = true
     private var baseTitle = ""
@@ -60,7 +61,7 @@ final class IdleView: NSView {
         statusPill.setText(Copy.idleStatus(model: model, language: language))
         dropZone.setAccessibilityLabel(hasKey ? Copy.idleTitle : Copy.setupTitle)
         dropZone.setAccessibilityHelp(hasKey ? Copy.idleSubtitle : Copy.setupBody)
-        refreshRecent(historyEnabled ? recent : [])
+        refreshRecent(historyEnabled ? recent : [], historyEnabled: historyEnabled)
         needsLayout = true
     }
 
@@ -173,6 +174,13 @@ final class IdleView: NSView {
         recentRows.spacing = Space.xxs
         recentRows.translatesAutoresizingMaskIntoConstraints = false
 
+        recentEmptyLabel.stringValue = Copy.recentEmpty
+        recentEmptyLabel.font = Typo.caption
+        recentEmptyLabel.textColor = Palette.muted
+        recentEmptyLabel.alignment = .left
+        recentEmptyLabel.maximumNumberOfLines = 0
+        recentEmptyLabel.isHidden = true
+
         recentCard.translatesAutoresizingMaskIntoConstraints = false
         recentCard.addSubview(recentRows)
         NSLayoutConstraint.activate([
@@ -182,12 +190,13 @@ final class IdleView: NSView {
             recentRows.bottomAnchor.constraint(equalTo: recentCard.bottomAnchor, constant: -6)
         ])
 
-        let recentSection = NSStackView(views: [recentHeader, recentCard])
+        let recentSection = NSStackView(views: [recentHeader, recentCard, recentEmptyLabel])
         recentSection.orientation = .vertical
         recentSection.alignment = .leading
         recentSection.spacing = Space.s
         recentSection.translatesAutoresizingMaskIntoConstraints = false
         recentSection.isHidden = true
+        recentEmptyLabel.widthAnchor.constraint(equalTo: recentSection.widthAnchor).isActive = true
         self.recentSection = recentSection
 
         let root = NSStackView(views: [topBar, dropZone, banner, recentSection])
@@ -227,7 +236,7 @@ final class IdleView: NSView {
 
     private var recentSection: NSStackView?
 
-    private func refreshRecent(_ summaries: [TranscriptSummary]) {
+    private func refreshRecent(_ summaries: [TranscriptSummary], historyEnabled: Bool) {
         recentRows.arrangedSubviews.forEach {
             recentRows.removeArrangedSubview($0)
             $0.removeFromSuperview()
@@ -242,8 +251,10 @@ final class IdleView: NSView {
             row.widthAnchor.constraint(equalTo: recentRows.widthAnchor).isActive = true
         }
         recentCount.stringValue = visible.isEmpty ? "" : "\(summaries.count)"
-        recentSection?.isHidden = visible.isEmpty
         recentCount.isHidden = visible.isEmpty
+        recentCard.isHidden = visible.isEmpty
+        recentEmptyLabel.isHidden = !visible.isEmpty
+        recentSection?.isHidden = !historyEnabled
     }
 
     override func viewDidChangeEffectiveAppearance() {

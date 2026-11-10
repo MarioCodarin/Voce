@@ -18,6 +18,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let glossaryScroll = NSTextView.scrollableTextView()
     private let glossaryStatus = NSTextField(wrappingLabelWithString: "")
     private let menuBarCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let shortcutPopup = NSPopUpButton()
     private let saveStatus = NSTextField(labelWithString: "")
     private let versionLabel = NSTextField(labelWithString: "")
     private var glossary: NSTextView { glossaryScroll.documentView as! NSTextView }
@@ -169,12 +170,19 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
         let menuBarSection = makeSection(title: Copy.sectionMenuBar, views: [
             menuBarCheck,
-            makeHelp(Copy.menuBarHelp)
+            makeHelp(Copy.menuBarHelp),
+            fieldLabel(Copy.globalShortcutLabel),
+            shortcutPopup,
+            makeHelp(Copy.globalShortcutHelp)
         ])
         menuBarCheck.title = Copy.menuBarToggle
         menuBarCheck.target = self
         menuBarCheck.action = #selector(menuBarToggled)
         menuBarCheck.font = Typo.label
+        shortcutPopup.addItems(withTitles: GlobalShortcut.allCases.map { $0.displayName(for: Copy.lang) })
+        shortcutPopup.target = self
+        shortcutPopup.action = #selector(globalShortcutChanged)
+        shortcutPopup.setAccessibilityLabel(Copy.globalShortcutLabel)
 
         versionLabel.font = Typo.caption
         versionLabel.textColor = Palette.muted
@@ -339,6 +347,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         let count = TranscriptArchive().list().count
         historyStatus.stringValue = Copy.historyCount(count)
         menuBarCheck.state = VoceSettings.menuBarEnabled ? .on : .off
+        if let index = GlobalShortcut.allCases.firstIndex(of: VoceSettings.globalShortcut) {
+            shortcutPopup.selectItem(at: index)
+        }
         saveStatus.stringValue = ""
 
         switch Glossary.read() {
@@ -398,6 +409,12 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func menuBarToggled() {
         VoceSettings.menuBarEnabled = menuBarCheck.state == .on
+    }
+
+    @objc private func globalShortcutChanged() {
+        let index = shortcutPopup.indexOfSelectedItem
+        guard GlobalShortcut.allCases.indices.contains(index) else { return }
+        VoceSettings.globalShortcut = GlobalShortcut.allCases[index]
     }
 
     @objc private func createKey() {

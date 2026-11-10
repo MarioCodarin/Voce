@@ -61,14 +61,15 @@ This document records the reasoning behind the 2.0 interface and the roadmap tha
 
 Priorities are impact on the core job ÷ effort. Everything here is optional; the core flow must stay one drop.
 
-### Now — polish the core (small)
+### Shipped in 2.1 — polish the core
 
-- **Drag several files at once** and queue them sequentially, with a small job list. High value for batch days; medium effort.
-- **Remember the last export format** and make `⌘S` use it. Removes a repeated choice.
-- **Editable transcript.** Today the text is selectable but not editable; a light edit mode that does not touch segments would help fixing a name in a pinch.
-- **Speaker re-identification across slices.** Chunk-local numbering can restart at a seam. A small heuristic (speaker turn continuity + overlap text) would make long meetings cleaner.
-- **Shortcuts.** A user-configurable global shortcut (`⌥⌘V`) to open the file panel without the menu bar.
-- **Better empty/offline states.** “No connection, your file is safe here” with retry in place.
+- **Multi-file queue.** Drop several files (or choose them with `⌘O`); Voce processes them one after another. The working screen shows a compact batch list with active/done/failed markers, and the result keeps every completed transcript in a file picker. Fatal errors (bad key, no network) stop the batch early; individual failures do not lose the successes.
+- **Remembered export format.** `⌘S` now reuses the last successful format (TXT/SRT/VTT), and the File menu title follows it. The explicit Export menu still lets you choose per save.
+- **Editable transcript.** The result has an Edit/Done toggle. Edits change copied and saved text immediately; the archive is updated when the edit is finished, and the subtitle segments stay untouched. Transitions (new file, queue switch, close, rename, export) commit the edit first.
+- **Speaker re-identification across slices.** When a chunk seam repeats at least three words and the local speaker number changes, the incoming speaker is mapped back to the outgoing one before stitching. Short coincidental overlaps are left alone.
+- **Configurable global shortcut.** `⌥⌘V` by default, `⌃⌥V` or off from Settings. It opens the file picker from any app through Carbon's `RegisterEventHotKey`, with no accessibility permission prompt.
+- **Better empty/offline states.** Offline failures say the file is safe and offer retry in place; an enabled-but-empty history explains where transcripts will appear.
+- **Video import.** MP4 and MOV are accepted and read as audio tracks; the rest of the pipeline is unchanged.
 
 ### Next — more value from the same file (medium)
 
@@ -76,7 +77,6 @@ Priorities are impact on the core job ÷ effort. Everything here is optional; th
 - **Glossary from corrections.** When the user renames a speaker or fixes a recurring term, offer “Add to glossary”. Over time the app learns the names of the organization.
 - **Search across history.** A small local index (SQLite FTS or an in-memory scan over the 100 records) for “where did we discuss the budget?”.
 - **Subtitle editor.** A lightweight table of cues with text editing and re-timing; export SRT/VTT/plain text.
-- **Import from video.** Use `AVAsset` audio tracks from MP4/MOV; already close with the current chunker.
 - **Language packs beyond IT/EN.** Spanish, French, German and Portuguese for the interface and transcription; the request language is already parameterized.
 - **Menu bar drop target.** Accept a file dropped on the status item (a small `NSStatusItem` window).
 

@@ -1,4 +1,5 @@
 import AppKit
+import VoceKit
 
 /// The menu bar: app, File, Edit, View, Window and Help with the usual shortcuts.
 ///
@@ -44,7 +45,7 @@ enum MainMenu {
 
         let copy = menu.addItem(withTitle: Copy.menuCopyTranscript, action: #selector(VoceController.copyTranscript), keyEquivalent: "c")
         copy.keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(withTitle: Copy.menuSaveTranscript, action: #selector(VoceController.saveTranscript), keyEquivalent: "s")
+        menu.addItem(withTitle: Copy.menuSaveTranscript(VoceSettings.lastExportFormat), action: #selector(VoceController.saveTranscript), keyEquivalent: "s")
         menu.addItem(withTitle: Copy.menuExportSRT, action: #selector(VoceController.exportSRT), keyEquivalent: "")
         menu.addItem(withTitle: Copy.menuExportVTT, action: #selector(VoceController.exportVTT), keyEquivalent: "")
         menu.addItem(withTitle: Copy.menuRenameSpeakers, action: #selector(VoceController.renameSpeakers), keyEquivalent: "")

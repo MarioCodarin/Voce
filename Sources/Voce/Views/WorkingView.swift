@@ -12,6 +12,8 @@ final class WorkingView: NSView {
     private let waveform = WaveformView()
     private let progress = ProgressBar()
     private let cancelButton = ActionButton(title: "", target: nil, action: nil)
+    private let queueBox = CardView()
+    private let queueStack = NSStackView()
 
     private var timer: Timer?
     private var startedAt = Date()
@@ -27,7 +29,7 @@ final class WorkingView: NSView {
     required init?(coder: NSCoder) { nil }
 
     /// Resets the screen for a new job and starts the elapsed-time clock.
-    func begin(file: String, model: TranscriptionModel) {
+    func begin(file: String, model: TranscriptionModel, queue: [QueueItem] = []) {
         fileLabel.stringValue = file
         modelName = model.displayName
         statusLabel.stringValue = TranscriptionStatus.listening.displayText(for: Copy.lang)
@@ -38,6 +40,7 @@ final class WorkingView: NSView {
         waveform.startAnimating()
         startedAt = Date()
         announcedQuarter = 0
+        renderQueue(queue)
         refreshDetail()
         timer?.invalidate()
         // `.common` keeps the clock running while menus are open or the window resizes.
@@ -63,6 +66,11 @@ final class WorkingView: NSView {
             announcedQuarter = quarter
             Announcer.say(Copy.percent(quarter * 25))
         }
+    }
+
+    /// Updates the batch list as files finish or fail.
+    func updateQueue(_ queue: [QueueItem]) {
+        renderQueue(queue)
     }
 
     func stop() {
@@ -115,7 +123,22 @@ final class WorkingView: NSView {
         cancelButton.target = self
         cancelButton.action = #selector(cancelClicked)
 
-        let stack = NSStackView(views: [fileLabel, waveform, statusLabel, progress, detailLabel, hintLabel, cancelButton])
+        queueStack.orientation = .vertical
+        queueStack.alignment = .leading
+        queueStack.spacing = 2
+        queueStack.translatesAutoresizingMaskIntoConstraints = false
+        queueBox.addSubview(queueStack)
+        queueBox.translatesAutoresizingMaskIntoConstraints = false
+        queueBox.isHidden = true
+        NSLayoutConstraint.activate([
+            queueStack.leadingAnchor.constraint(equalTo: queueBox.leadingAnchor, constant: Space.m),
+            queueStack.trailingAnchor.constraint(equalTo: queueBox.trailingAnchor, constant: -Space.m),
+            queueStack.topAnchor.constraint(equalTo: queueBox.topAnchor, constant: Space.s),
+            queueStack.bottomAnchor.constraint(equalTo: queueBox.bottomAnchor, constant: -Space.s),
+            queueBox.widthAnchor.constraint(equalToConstant: 360)
+        ])
+
+        let stack = NSStackView(views: [fileLabel, waveform, statusLabel, progress, detailLabel, hintLabel, cancelButton, queueBox])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = Space.s
@@ -124,6 +147,7 @@ final class WorkingView: NSView {
         stack.setCustomSpacing(Space.xs, after: statusLabel)
         stack.setCustomSpacing(Space.s, after: progress)
         stack.setCustomSpacing(Space.xxl, after: hintLabel)
+        stack.setCustomSpacing(Space.l, after: cancelButton)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
@@ -147,5 +171,86 @@ final class WorkingView: NSView {
 
     @objc private func cancelClicked() {
         onCancel?()
+    }
+
+    // MARK: - Batch list
+
+    private func renderQueue(_ queue: [QueueItem]) {
+        queueStack.arrangedSubviews.forEach {
+            queueStack.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        queueBox.isHidden = queue.count <= 1
+
+        // Keep the active file visible even in a long batch.
+        let active = queue.firstIndex { $0.state == .active } ?? 0
+        queueBox.setAccessibilityLabel(Copy.queuePosition(active + 1, queue.count))
+        let start = max(0, min(active - 1, max(0, queue.count - 4)))
+        let end = min(queue.count, start + 4)
+        let visible = Array(queue[start..<end].enumerated())
+        if start > 0 {
+            let before = NSTextField(labelWithString: "…")
+            before.font = Typo.caption
+            before.textColor = Palette.muted
+            queueStack.addArrangedSubview(before)
+        }
+
+        for (offset, item) in visible {
+            let icon = NSImageView()
+            icon.image = NSImage(systemSymbolName: symbol(for: item.state), accessibilityDescription: nil)
+            icon.contentTintColor = color(for: item.state)
+            icon.imageScaling = .scaleProportionallyDown
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                icon.widthAnchor.constraint(equalToConstant: 13),
+                icon.heightAnchor.constraint(equalToConstant: 13)
+            ])
+
+            let label = NSTextField(labelWithString: item.name)
+            label.font = item.state == .active ? Typo.labelStrong : Typo.caption
+            label.textColor = item.state == .active ? Palette.ink : Palette.muted
+            label.lineBreakMode = .byTruncatingMiddle
+            label.maximumNumberOfLines = 1
+            label.setContentCompressionResistancePriority(.init(250), for: .horizontal)
+
+            let position = NSTextField(labelWithString: "\(start + offset + 1)")
+            position.font = Typo.captionDigits
+            position.textColor = Palette.muted.withAlphaComponent(0.7)
+            position.alignment = .right
+            position.widthAnchor.constraint(equalToConstant: 14).isActive = true
+
+            let row = NSStackView(views: [icon, label, NSView(), position])
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.spacing = Space.s
+            row.translatesAutoresizingMaskIntoConstraints = false
+            queueStack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: queueStack.widthAnchor).isActive = true
+        }
+
+        if end < queue.count {
+            let more = NSTextField(labelWithString: Copy.queueMore(queue.count - end))
+            more.font = Typo.caption
+            more.textColor = Palette.muted
+            queueStack.addArrangedSubview(more)
+        }
+    }
+
+    private func symbol(for state: QueueItem.State) -> String {
+        switch state {
+        case .pending: "circle"
+        case .active: "waveform"
+        case .done: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        }
+    }
+
+    private func color(for state: QueueItem.State) -> NSColor {
+        switch state {
+        case .pending: Palette.muted.withAlphaComponent(0.55)
+        case .active: Palette.accent
+        case .done: Palette.muted
+        case .failed: Palette.accentText
+        }
     }
 }

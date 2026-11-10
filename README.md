@@ -11,6 +11,14 @@ Voce is a small native AppKit app built with Swift 6. It uses your own [OpenRout
 | --- | --- | --- |
 | ![Idle screen](docs/screenshots/idle-dark.png) | ![Working screen](docs/screenshots/working-dark.png) | ![Result screen](docs/screenshots/result-dark.png) |
 
+| Batch queue | Editable transcript |
+| --- | --- |
+| ![Batch queue](docs/screenshots/batch-dark.png) | ![Editing](docs/screenshots/editing-dark.png) |
+
+After a batch, every completed file stays one click away:
+
+![Batch result](docs/screenshots/batch-result-dark.png)
+
 ## Why Voce
 
 - **Bring your own key.** Nothing is baked into the build. The key lives in the macOS Keychain and is never written to the repository or the logs.
@@ -21,16 +29,21 @@ Voce is a small native AppKit app built with Swift 6. It uses your own [OpenRout
 
 ## Features
 
-- Drag a file anywhere on the window, or press `⌘O`. Supported: `m4a`, `mp3`, `wav`, `flac`, `aac`, `mp4`, `ogg`, `webm`.
+- Drag one or many files anywhere on the window, or press `⌘O`. They are transcribed one after another; a compact list shows the batch and the result keeps every file one click away.
+- Supported: `m4a`, `mp3`, `wav`, `flac`, `aac`, `mp4`, `mov`, `ogg`, `webm`. Video files are read as audio tracks.
 - Long recordings are split per model, with overlap, then stitched without duplicated words at the cuts.
 - Speaker turns, optional punctuation/casing pass that never rewrites words.
 - Audio language: **Automatic**, **Italiano**, **English** (per job, from Settings).
-- Result screen: copy (`⇧⌘C`), save/export `.txt`, `.srt`, `.vtt`, rename speakers, find (`⌘F`).
+- Result screen: copy (`⇧⌘C`), save/export `.txt`, `.srt`, `.vtt`, rename speakers, edit the text, find (`⌘F`).
+- `⌘S` remembers the last export format; the menu title follows it.
+- A global shortcut (`⌥⌘V` by default, configurable or off) opens the file picker from any app.
 - Recent transcripts (opt-in), reopen with one click from the idle screen or the menu bar.
 - Menu bar waveform with recent transcripts and “Transcribe a file…”.
 - Bilingual interface: Italian and English, following the system by default.
 - First-run onboarding with key validation and a link to create a key.
 - `--doctor` and a readable log for support.
+- Empty and offline states explain what happened and keep the file safe with a retry in place.
+- Cross-slice speaker re-identification: local speaker numbers that restart at a chunk seam are merged when the overlap text is strong enough.
 
 ## Requirements
 
