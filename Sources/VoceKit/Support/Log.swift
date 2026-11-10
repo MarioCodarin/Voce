@@ -99,8 +99,9 @@ public enum Log {
     /// A short, privacy-safe description of an error (no key, no transcript).
     public static func describe(_ error: Error) -> String {
         if let error = error as? TranscribeError { return error.logDescription }
+        // Do not include `localizedDescription`: file errors can carry a path with a name.
         let nsError = error as NSError
-        return "\(nsError.domain)(\(nsError.code)): \(nsError.localizedDescription)"
+        return "\(nsError.domain)(\(nsError.code))"
     }
 
     private static func emit(_ level: Level, _ category: Category, _ message: String) {
