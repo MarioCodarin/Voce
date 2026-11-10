@@ -17,12 +17,12 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 | `VoceKit/Config` | `VoceSettings` (UserDefaults), `TranscriptionModel` registry, `TranscriptionLanguage`, `InterfaceLanguage`, `GlobalShortcut`, `Secrets`, `Glossary`, fixed `TranscriptionConfig` |
 | `VoceKit/Audio` | `AudioFormat`, `AudioChunker` (ranges + one-slice export), `AudioConverter` (ffmpeg / afconvert), `TempFiles` |
 | `VoceKit/Network` | `OpenRouterClient`, `TranscriptionRequest` (multipart or streaming JSON), `MultipartBody`, `KeyChecker`, shared `NetworkSession` |
-| `VoceKit/Transcription` | `Transcriber`, `TranscriptionStatus`, `TranscriptSegment`, `RichTranscript`, `TranscriptStitcher`, `CleanupPass`, `SubtitleFormatter`, `SpeakerRenamer`, `TranscribeError` |
+| `VoceKit/Transcription` | `Transcriber`, `TranscriptionStatus`, `TranscriptSegment`, `RichTranscript`, `TranscriptStitcher`, `CleanupPass`, `SummaryPass`, `SubtitleFormatter`/`SubtitleCue`, `SpeakerRenamer`, `TranscribeError` |
 | `VoceKit/Storage` | `TranscriptArchive` + record/summary, `OutputFormat` |
 | `VoceKit/CLI` | `CLI`, `CLIArguments`, `Doctor` |
 | `VoceKit/Support` | `Log`, `VoceVersion`, `VoceLinks`, `VoceMaintenance` |
 | `Voce/Controllers` | `VoceController` (state machine + sequential batch), `TranscriptionJob` (generation-guarded task), `QueueItem` |
-| `Voce/Views` | Idle, working, result (queue picker + edit mode), drop host/zone, recent row, banners, onboarding, settings, speaker sheet, waveform |
+| `Voce/Views` | Idle, working, result (queue picker + edit mode), drop host/zone, recent row, banners, onboarding, settings, speaker sheet, waveform, summary window, subtitle editor, history search, status drop target |
 | `Voce/Theme` | Palette, spacing, radii, type, motion, buttons, progress bar, cards, pills |
 | `Voce/Localization` | `Copy`: every user-facing string in Italian and English |
 | `Voce/Debug` | Screenshot/preview hooks (debug builds only) |
@@ -37,13 +37,15 @@ Voce (executable, AppKit)  ──depends on──▶  VoceKit (library, Foundati
 | `TranscriptionModel` | closed registry: OpenRouter id, captions, slice sizes, glossary route, diarization |
 | `VoceSettings` | model, audio language, cleanup, interface language, local history, menu bar, global shortcut, last export format |
 | `GlobalShortcut` | global key combinations offered by the app (⌥⌘V, ⌃⌥V, off) |
+| `TranscriptionLanguage` / `InterfaceLanguage` | audio and UI languages: IT, EN, ES, FR, DE, PT |
 | `TranscriptionLanguage` / `InterfaceLanguage` | request language and UI language resolution |
 | `TranscriptSegment` / `RichTranscript` | speaker turns, text, timestamps, speaker indices |
 | `TranscriptStitcher` | overlap-aware merge of chunk transcripts |
 | `CleanupPass` | punctuation/casing pass, guarded by word and speaker-label checks |
-| `SubtitleFormatter` / `OutputFormat` | SRT, WebVTT, plain text rendering |
+| `SummaryPass` | optional Markdown summary/decisions/actions from the transcript; never mixed into the verbatim text |
+| `SubtitleFormatter` / `SubtitleCue` / `OutputFormat` | cue generation, editable timings, SRT/WebVTT/plain text rendering |
 | `SpeakerRenamer` | replace `Parlante N:` / `Speaker N:` prefixes with names |
-| `TranscriptArchive` / `TranscriptRecord` / `TranscriptSummary` | opt-in local history, `0600` files, index for fast listing, text updates after edits |
+| `TranscriptArchive` / `TranscriptRecord` / `TranscriptSummary` / `TranscriptSearchHit` | opt-in local history, `0600` files, index for fast listing, text updates after edits, local text/name search |
 | `KeyChecker` | live key validation and credit summary |
 | `Secrets` | key resolution (environment → Keychain → file), masking, shape check |
 | `Glossary` | bundled sample, user file, normalization, 2,000-term cap |
@@ -95,6 +97,7 @@ The app is designed to stay flat on long files and idle when not working.
 - **Cheap history reads.** `index.json` holds summaries only; transcripts are loaded on open.
 - **GPU animation.** The waveform is 13 CALayers animated on the render server; it stops when the view hides. The progress slide is one Core Animation. Reduce Motion disables both.
 - **One timer, only while working.** The elapsed clock is invalidated on every screen change.
+- **Optional AI work is explicit.** Summary and cleanup only run when requested/enabled; they never sit in the audio path.
 - **Batches are sequential.** Only one slice and one upload exist at a time; completed sessions are small in-memory structs (and JSON files when history is on).
 - **Logs are cheap and bounded.** `os.Logger` plus a serial file writer; rotations at 1 MB. Debug lines are opt-in with `VOCE_LOG=debug`.
 - **Temp cleanup.** Each job owns a `voce-<UUID>` folder; `VoceMaintenance.prepareForLaunch()` removes leftovers older than 24 hours.
@@ -108,6 +111,7 @@ The app is designed to stay flat on long files and idle when not working.
 - Directory `0700`, files `0600`. Maximum 100 records; the oldest is pruned on save.
 - A missing or corrupt index is rebuilt from the record files.
 - A text edit rewrites the record and its summary, so the recent-list word count stays accurate.
+- `search(_:)` reads the archive off the main thread, matching transcript text and speaker names case/accent-insensitively and returning a context snippet.
 - History is off by default and can be cleared from Settings.
 
 `~/.config/voce/glossary.txt` — one term per line, `0600`, normalized on save. A missing user file falls back to the bundled sample.
@@ -116,7 +120,9 @@ The app is designed to stay flat on long files and idle when not working.
 
 ## Localization
 
-`Copy` in the app is a single table with both languages side by side; `VoceKit` returns semantic values (`TranscriptionStatus`) or takes an `InterfaceLanguage` for errors and captions. Adding a language means adding one case and one column, with the compiler pointing at every switch that needs attention.
+`Copy` keeps the Italian and English source pair at every call site. Spanish, French, German and Portuguese static strings live in `Translations.swift`, keyed by English, with a safe English fallback. Dynamic strings (counts, dates, queue lines, errors, status) carry all six variants in `Copy.t6` or in `VoceKit` switches. `VoceKit` returns semantic values (`TranscriptionStatus`) or takes an `InterfaceLanguage` for errors, captions and model descriptions. Adding a language means adding one case, one copy column and one dictionary; the compiler points at every switch that needs attention.
+
+The interface follows the system language by default. `VOCE_UI_LANGUAGE=es|fr|de|pt` is a debug-only override used by the snapshot suite.
 
 `.system` resolves to Italian when the first preferred language starts with `it`, otherwise English. The choice is stored in `voce.interface`.
 
@@ -124,15 +130,17 @@ The app is designed to stay flat on long files and idle when not working.
 
 - **New audio format:** one entry in `AudioFormat.mimeTypes`.
 - **New model:** one case in `TranscriptionModel` with id, captions, slice sizes, provider options and `wantsVerboseJSON`; the Settings picker lists it automatically.
-- **New audio language:** one case in `TranscriptionLanguage` with its request code and speaker label.
+- **New audio language:** one case in `TranscriptionLanguage` with its request code and speaker label, one in `InterfaceLanguage`, and a copy column.
+- **New interface language:** add a case to `InterfaceLanguage`, a dictionary to `Translations.swift`, and the dynamic variants in `Copy.t6`/`VoceKit`.
 - **New export format:** one case in `OutputFormat` and a renderer.
 - **New screen:** an `NSView` in `Views/`, a case in `VoceController.State` and a branch in `render`.
+- **New auxiliary window:** an `NSWindowController` in `Views/`, retained by `VoceController` or `AppDelegate`; use `Copy` for every label.
 - **New setting:** a key in `VoceSettings`, a control in Settings, and (if it affects a job) a snapshot in `Transcriber`.
 - **New batch state:** `QueueItem` in the app target, the queue methods in `VoceController`, and a matching row in `WorkingView` / picker in `ResultView`.
 
 ## Testing
 
-103 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching and cross-seam re-identification, subtitle timestamps, speaker renaming, cleanup guards and chunking, archive save/load/prune/rebuild/text updates, settings defaults and migration, global shortcut options, key parsing, video formats, and output formats.
+118 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching and cross-seam re-identification, subtitle timestamps and custom cues, speaker renaming, cleanup guards and chunking, summary requests and prompts, archive save/load/prune/rebuild/text updates/search, settings defaults and language round-trips, global shortcut options, key parsing, language labels and status text, video formats, and output formats.
 
 `./scripts/test.sh` handles the Command Line Tools-only setup, where the `Testing` macro plugin needs an explicit path and framework search path. With Xcode selected, `swift test` is enough.
 
@@ -142,4 +150,4 @@ The app target has no test target; screens are verified with debug snapshots:
 VOCE_SNAPSHOT=/tmp/voce-shots .build/debug/Voce
 ```
 
-This renders idle, empty history, recent, setup, error, working, working with a batch, waiting, result, editing, and batch result at two window sizes and both appearances, plus Settings and onboarding. It exits without touching the real display.
+This renders idle, empty history, recent, setup, error, working, working with a batch, waiting, result, editing, and batch result at two window sizes and both appearances, plus Settings, onboarding, summary, subtitle editor and search. It exits without touching the real display.

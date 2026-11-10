@@ -14,6 +14,14 @@ enum CleanupPass {
             return "Restore punctuation, capitalization and paragraph breaks at every speaker change. Do NOT change the words, do NOT normalize dialect, do NOT summarize. Keep every label in the form '\(speakerLabel) N:'. Reply with the transcript only."
         case .italian, .automatic:
             return "Rimetti punteggiatura, maiuscole e capoversi a ogni cambio di parlante. NON cambiare le parole, NON normalizzare il dialetto, NON riassumere. Conserva ogni etichetta come '\(speakerLabel) N:'. Rispondi con la sola trascrizione."
+        case .spanish:
+            return "Restaura la puntuación, las mayúsculas y los párrafos en cada cambio de hablante. NO cambies las palabras, NO normalices el dialecto, NO resumas. Conserva cada etiqueta como '\(speakerLabel) N:'. Responde solo con la transcripción."
+        case .french:
+            return "Rétablis la ponctuation, les majuscules et les paragraphes à chaque changement d'intervenant. NE change pas les mots, NE normalise pas le dialecte, NE résume pas. Conserve chaque étiquette sous la forme '\(speakerLabel) N:'. Réponds uniquement avec la transcription."
+        case .german:
+            return "Stelle Zeichensetzung, Großschreibung und Absätze bei jedem Sprecherwechsel wieder her. Ändere KEINE Wörter, normalisiere keinen Dialekt, fasse nicht zusammen. Behalte jede Kennzeichnung als '\(speakerLabel) N:'. Antworte nur mit dem Transkript."
+        case .portuguese:
+            return "Restaura a pontuação, as maiúsculas e os parágrafos em cada mudança de falante. NÃO alteres as palavras, NÃO normalizes o dialeto, NÃO resumas. Mantém cada etiqueta como '\(speakerLabel) N:'. Responde apenas com a transcrição."
         }
     }
 

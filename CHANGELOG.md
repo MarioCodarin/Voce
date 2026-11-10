@@ -2,6 +2,33 @@
 
 All notable changes to Voce. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-11-10
+
+### Added
+
+- Optional AI meeting summary and action items in a separate window, with a prompt that forbids inventing facts, names, owners or dates. Regenerate and copy; never mixed into the verbatim transcript.
+- Glossary learning from speaker renames: a checked-by-default option adds the new names to the local glossary, deduplicated and without touching headings.
+- Local history search (`⌘⇧F` and the menu bar) across transcript text and speaker names, with context snippets and one-click open.
+- Subtitle editor: editable cue text and start/end times, add/delete/align, and SRT/WebVTT/TXT export.
+- Spanish, French, German and Portuguese for both the interface and the audio language, with translated static copy, dynamic strings, errors, status lines and AI prompts.
+- Menu-bar drop target: drop an audio file on the waveform to enqueue it.
+
+### Changed
+
+- Archive search runs off the main thread and is case/accent-insensitive.
+- The summary and subtitle editor are retained auxiliary windows and close cleanly; edits commit before leaving the result.
+- Version bumped to 2.2.0 (build 4).
+
+### Security
+
+- Summary is strictly on demand: the full transcript is sent to the chat endpoint only when the user presses Summary, and the result is not stored automatically.
+- History search is entirely local.
+- No new telemetry or background network activity.
+
+### Tests
+
+- 118 tests, including summary request shapes, archive search, glossary merging, custom subtitle cues, language labels/status and error translations.
+
 ## [2.1.0] — 2026-11-10
 
 ### Added

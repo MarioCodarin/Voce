@@ -8,6 +8,8 @@ final class ResultView: NSView {
     var onRename: (() -> Void)?
     var onNew: (() -> Void)?
     var onSelectQueueItem: ((Int) -> Void)?
+    var onSummarize: (() -> Void)?
+    var onEditSubtitles: (() -> Void)?
     var onTextChanged: ((String) -> Void)?
     var onEditFinished: ((String) -> Void)?
 
@@ -15,6 +17,7 @@ final class ResultView: NSView {
     private let captionLabel = NSTextField(labelWithString: "")
     private let renameButton = LinkButton(title: "", target: nil, action: nil)
     private let editButton = LinkButton(title: "", target: nil, action: nil)
+    private let summaryButton = LinkButton(title: "", target: nil, action: nil)
     private let queuePopup = NSPopUpButton()
     private let editHint = NSTextField(wrappingLabelWithString: "")
     private let banner = MessageBanner()
@@ -175,7 +178,13 @@ final class ResultView: NSView {
         editButton.font = Typo.captionStrong
         editButton.toolTip = Copy.editHelp
 
-        let links = NSStackView(views: [renameButton, editButton])
+        summaryButton.title = Copy.summary
+        summaryButton.target = self
+        summaryButton.action = #selector(summaryClicked)
+        summaryButton.font = Typo.captionStrong
+        summaryButton.toolTip = Copy.summaryDisclaimer
+
+        let links = NSStackView(views: [renameButton, editButton, summaryButton])
         links.orientation = .horizontal
         links.alignment = .centerY
         links.spacing = Space.l
@@ -287,6 +296,8 @@ final class ResultView: NSView {
 
     @objc private func copyClicked() { onCopy?() }
     @objc private func renameClicked() { onRename?() }
+    @objc private func summaryClicked() { onSummarize?() }
+    @objc private func editSubtitlesClicked() { onEditSubtitles?() }
     @objc private func newClicked() { onNew?() }
 
     @objc private func editClicked() {
@@ -340,6 +351,10 @@ final class ResultView: NSView {
 
     @objc private func exportClicked() {
         let menu = NSMenu()
+        let edit = NSMenuItem(title: Copy.menuEditSubtitles, action: #selector(editSubtitlesClicked), keyEquivalent: "")
+        edit.target = self
+        menu.addItem(edit)
+        menu.addItem(.separator())
         for format in OutputFormat.allCases {
             let item = NSMenuItem(title: Copy.exportTitle(format), action: #selector(exportFormat(_:)), keyEquivalent: "")
             item.target = self

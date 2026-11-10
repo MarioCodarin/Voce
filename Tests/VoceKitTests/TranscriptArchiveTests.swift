@@ -117,6 +117,27 @@ struct TranscriptArchiveTests {
         #expect(archive.list().first?.wordCount == 4)
     }
 
+    @Test func searchesTextAndSpeakerNames() throws {
+        let (archive, directory) = try makeArchive()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let budget = record("Abbiamo parlato del budget per il viaggio", speakers: [1: "Giulia"])
+        let other = record("Nessun argomento qui", speakers: [1: "Marco"])
+        archive.save(budget)
+        archive.save(other)
+
+        let textHits = archive.search("BUDGET")
+        #expect(textHits.count == 1)
+        #expect(textHits[0].summary.id == budget.id)
+        #expect(textHits[0].snippet.lowercased().contains("budget"))
+
+        let nameHits = archive.search("giulia")
+        #expect(nameHits.map(\.summary.id) == [budget.id])
+        #expect(archive.search("").isEmpty)
+        #expect(archive.search("assente").isEmpty)
+        #expect(archive.search("a", limit: 1).count == 1)
+    }
+
     @Test func filesAreOwnerOnly() throws {
         let (archive, directory) = try makeArchive()
         defer { try? FileManager.default.removeItem(at: directory) }

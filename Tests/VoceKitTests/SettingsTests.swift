@@ -27,13 +27,13 @@ struct SettingsTests {
         let defaults = freshDefaults()
         VoceSettings.model = .scribeV2
         VoceSettings.language = .english
-        VoceSettings.interfaceLanguage = .italian
+        VoceSettings.interfaceLanguage = .spanish
         VoceSettings.cleanupEnabled = false
         VoceSettings.lastExportFormat = .srt
         VoceSettings.globalShortcut = .controlOptionV
         #expect(VoceSettings.model == .scribeV2)
         #expect(VoceSettings.language == .english)
-        #expect(VoceSettings.interfaceLanguage == .italian)
+        #expect(VoceSettings.interfaceLanguage == .spanish)
         #expect(VoceSettings.cleanupEnabled == false)
         #expect(VoceSettings.lastExportFormat == .srt)
         #expect(VoceSettings.globalShortcut == .controlOptionV)
@@ -69,12 +69,24 @@ struct SettingsTests {
         #expect(phrases == ["ACME", "Rossi"])
     }
 
-    @Test func captionsExistInBothLanguages() {
+    @Test func captionsExistInEveryLanguage() {
         for model in TranscriptionModel.allCases {
-            #expect(!model.caption(for: .italian).isEmpty)
-            #expect(!model.caption(for: .english).isEmpty)
-            #expect(model.caption(for: .italian) != model.caption(for: .english))
+            let captions = InterfaceLanguage.allCases
+                .filter { $0 != .system }
+                .map { model.caption(for: $0) }
+            #expect(captions.allSatisfy { !$0.isEmpty })
+            #expect(Set(captions).count == InterfaceLanguage.allCases.count - 1)
         }
+    }
+
+    @Test func interfaceLanguageCases() {
+        #expect(InterfaceLanguage.spanish.locale.identifier.hasPrefix("es"))
+        #expect(InterfaceLanguage.french.locale.identifier.hasPrefix("fr"))
+        #expect(InterfaceLanguage.german.locale.identifier.hasPrefix("de"))
+        #expect(InterfaceLanguage.portuguese.locale.identifier.hasPrefix("pt"))
+        #expect(InterfaceLanguage.stored("es") == .spanish)
+        #expect(InterfaceLanguage.stored("future") == .system)
+        #expect(InterfaceLanguage.spanish.displayName == "Español")
     }
 
     @Test func languageLabels() {
@@ -84,13 +96,22 @@ struct SettingsTests {
         #expect(TranscriptionLanguage.automatic.speakerLabel(for: .italian) == "Parlante")
         #expect(TranscriptionLanguage.automatic.requestValue == nil)
         #expect(TranscriptionLanguage.italian.requestValue == "it")
+        #expect(TranscriptionLanguage.spanish.speakerLabel == "Hablante")
+        #expect(TranscriptionLanguage.french.speakerLabel == "Intervenant")
+        #expect(TranscriptionLanguage.german.speakerLabel == "Sprecher")
+        #expect(TranscriptionLanguage.portuguese.speakerLabel == "Falante")
+        #expect(TranscriptionLanguage.spanish.requestValue == "es")
+        #expect(TranscriptionLanguage.french.displayName(for: .german) == "Französisch")
+        #expect(TranscriptionLanguage.automatic.speakerLabel(for: .french) == "Intervenant")
+        #expect(TranscriptionLanguage.stored("pt") == .portuguese)
     }
 
     @Test func statusTextIsLocalized() {
         let status = TranscriptionStatus.chunk(index: 2, total: 5)
-        #expect(status.displayText(for: .italian).contains("2"))
-        #expect(status.displayText(for: .english).contains("2"))
-        #expect(status.displayText(for: .italian) != status.displayText(for: .english))
+        let texts = [InterfaceLanguage.italian, .english, .spanish, .french, .german, .portuguese]
+            .map { status.displayText(for: $0) }
+        #expect(texts.allSatisfy { $0.contains("2") })
+        #expect(Set(texts).count == texts.count)
     }
 }
 
@@ -114,6 +135,8 @@ struct GlobalShortcutTests {
         #expect(GlobalShortcut.optionCommandV.displayName(for: .italian) == "⌥⌘V")
         #expect(GlobalShortcut.off.displayName(for: .italian) == "Disattivata")
         #expect(GlobalShortcut.off.displayName(for: .english) == "Off")
+        #expect(GlobalShortcut.off.displayName(for: .spanish) == "Desactivada")
+        #expect(GlobalShortcut.off.displayName(for: .german) == "Deaktiviert")
     }
 }
 

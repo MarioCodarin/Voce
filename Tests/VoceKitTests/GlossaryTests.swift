@@ -35,3 +35,22 @@ struct GlossaryTests {
         #expect(Glossary.terms(in: text).count == Glossary.maxTerms + 50)
     }
 }
+
+
+struct GlossaryLearningTests {
+    @Test func addsOnlyNewTermsAndKeepsHeadings() {
+        let merged = Glossary.adding(["Mario", "Giulia"], to: "# Nomi\nMario\nLuca")
+        #expect(merged.contains("# Nomi"))
+        #expect(Glossary.terms(in: merged) == ["Mario", "Luca", "Giulia"])
+    }
+
+    @Test func ignoresBlanksHeadingsAndDuplicates() {
+        let merged = Glossary.adding(["  ", "# heading", "Mario", "mario"], to: "Mario")
+        #expect(Glossary.terms(in: merged) == ["Mario"])
+    }
+
+    @Test func appendsWithASingleSeparator() {
+        let merged = Glossary.adding(["Giulia"], to: "Mario\n\n")
+        #expect(merged == "Mario\n\nGiulia")
+    }
+}

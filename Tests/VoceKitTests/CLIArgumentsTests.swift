@@ -52,6 +52,17 @@ struct CLIArgumentsTests {
         #expect(arguments.quiet)
     }
 
+    @Test func newAudioLanguagesParse() throws {
+        for (raw, expected) in [("es", TranscriptionLanguage.spanish), ("fr", .french), ("de", .german), ("pt", .portuguese)] {
+            let parsed = try #require(try CLIArguments.parse(["--transcribe", "/tmp/a.m4a", "--language", raw]))
+            guard case .transcribe(let arguments) = parsed else {
+                Issue.record("expected transcribe")
+                return
+            }
+            #expect(arguments.language == expected)
+        }
+    }
+
     @Test func missingFileIsUsageError() {
         #expect(throws: CLIArguments.UsageError.self) {
             try CLIArguments.parse(["--transcribe"])
@@ -63,7 +74,7 @@ struct CLIArgumentsTests {
             try CLIArguments.parse(["--transcribe", "/tmp/a.m4a", "--format", "docx"])
         }
         #expect(throws: CLIArguments.UsageError.self) {
-            try CLIArguments.parse(["--transcribe", "/tmp/a.m4a", "--language", "fr"])
+            try CLIArguments.parse(["--transcribe", "/tmp/a.m4a", "--language", "zz"])
         }
         #expect(throws: CLIArguments.UsageError.self) {
             try CLIArguments.parse(["--transcribe", "/tmp/a.m4a", "--model", "nope"])

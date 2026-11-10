@@ -71,14 +71,22 @@ Priorities are impact on the core job ÷ effort. Everything here is optional; th
 - **Better empty/offline states.** Offline failures say the file is safe and offer retry in place; an enabled-but-empty history explains where transcripts will appear.
 - **Video import.** MP4 and MOV are accepted and read as audio tracks; the rest of the pipeline is unchanged.
 
-### Next — more value from the same file (medium)
+### Shipped in 2.2 — more value from the same file
 
-- **Summary and action items.** One extra chat call after transcription: decisions, owners, deadlines. This is the most requested follow-up for meetings; keep it optional and clearly separated from the verbatim transcript.
-- **Glossary from corrections.** When the user renames a speaker or fixes a recurring term, offer “Add to glossary”. Over time the app learns the names of the organization.
-- **Search across history.** A small local index (SQLite FTS or an in-memory scan over the 100 records) for “where did we discuss the budget?”.
-- **Subtitle editor.** A lightweight table of cues with text editing and re-timing; export SRT/VTT/plain text.
-- **Language packs beyond IT/EN.** Spanish, French, German and Portuguese for the interface and transcription; the request language is already parameterized.
-- **Menu bar drop target.** Accept a file dropped on the status item (a small `NSStatusItem` window).
+- **Summary and action items.** An optional Summary button opens a separate window with a Markdown summary, decisions and action items (owner/deadline only when the transcript states them). The prompt forbids inventing facts; the window is clearly labelled as AI-generated and never mixed into the verbatim transcript. Regenerate and copy are one click.
+- **Glossary from corrections.** The speaker rename sheet has “Add these names to the glossary” enabled by default. New names are merged into `~/.config/voce/glossary.txt`, deduplicated case-insensitively, without touching existing headings.
+- **Search across history.** `⌘⇧F` or the menu-bar item opens a local search window. It scans transcript text and speaker names across the archive (case- and accent-insensitive), shows the context around the match, and opens the transcript in one click.
+- **Subtitle editor.** From the result’s Export menu or File menu: a table of cues with editable start/end times and text, add/delete/align actions, and SRT/WebVTT/TXT export. Re-timing is independent of the transcript.
+- **Language packs.** Interface and audio languages now include Spanish, French, German and Portuguese. The full static copy catalog is translated; dynamic strings (dates, counts, queue messages, errors and status lines) are localized too. The interface follows the system language and can be changed in Settings.
+- **Menu-bar drop target.** A file dropped directly on the waveform in the menu bar opens Voce and enters the normal queue, without finding the window first.
+
+### Next after 2.2 — polish
+
+- **Persist summaries.** Keep the generated summary with the archived transcript and include it in exports.
+- **Batch retry.** Retry only failed files from the queue summary, without re-running successes.
+- **Subtitle waveform.** A cue timeline with waveform scrubbing and keyboard re-timing.
+- **Localization QA.** Run the six interface languages past native speakers and add plural rules where needed.
+- **Distribution.** Notarization and an update path so the Keychain prompt and Gatekeeper warning are less frequent.
 
 ### Later — ambitious, only with evidence
 

@@ -49,7 +49,12 @@ enum MainMenu {
         menu.addItem(withTitle: Copy.menuExportSRT, action: #selector(VoceController.exportSRT), keyEquivalent: "")
         menu.addItem(withTitle: Copy.menuExportVTT, action: #selector(VoceController.exportVTT), keyEquivalent: "")
         menu.addItem(withTitle: Copy.menuRenameSpeakers, action: #selector(VoceController.renameSpeakers), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.summary + "…", action: #selector(VoceController.showSummary), keyEquivalent: "")
+        menu.addItem(withTitle: Copy.menuEditSubtitles, action: #selector(VoceController.showSubtitleEditor), keyEquivalent: "")
 
+        menu.addItem(.separator())
+        let search = menu.addItem(withTitle: Copy.menuSearchHistory, action: #selector(AppDelegate.showHistorySearch), keyEquivalent: "f")
+        search.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(.separator())
         menu.addItem(withTitle: Copy.menuNewTranscript, action: #selector(VoceController.newTranscription), keyEquivalent: "n")
         menu.addItem(withTitle: Copy.menuCancelWork, action: #selector(VoceController.cancelWork), keyEquivalent: "\u{1b}")

@@ -15,6 +15,14 @@ Voce is a small native AppKit app built with Swift 6. It uses your own [OpenRout
 | --- | --- |
 | ![Batch queue](docs/screenshots/batch-dark.png) | ![Editing](docs/screenshots/editing-dark.png) |
 
+| Optional summary | Subtitle editor |
+| --- | --- |
+| ![Meeting summary](docs/screenshots/summary-dark.png) | ![Subtitle editor](docs/screenshots/subtitles-dark.png) |
+
+Search every saved transcript locally:
+
+![History search](docs/screenshots/search-dark.png)
+
 After a batch, every completed file stays one click away:
 
 ![Batch result](docs/screenshots/batch-result-dark.png)
@@ -33,14 +41,20 @@ After a batch, every completed file stays one click away:
 - Supported: `m4a`, `mp3`, `wav`, `flac`, `aac`, `mp4`, `mov`, `ogg`, `webm`. Video files are read as audio tracks.
 - Long recordings are split per model, with overlap, then stitched without duplicated words at the cuts.
 - Speaker turns, optional punctuation/casing pass that never rewrites words.
-- Audio language: **Automatic**, **Italiano**, **English** (per job, from Settings).
+- Audio language: **Automatic**, **Italiano**, **English**, **Español**, **Français**, **Deutsch**, **Português** (per job, from Settings).
+- Interface language: Italian, English, Spanish, French, German, Portuguese, or follow the system.
 - Result screen: copy (`⇧⌘C`), save/export `.txt`, `.srt`, `.vtt`, rename speakers, edit the text, find (`⌘F`).
 - `⌘S` remembers the last export format; the menu title follows it.
 - A global shortcut (`⌥⌘V` by default, configurable or off) opens the file picker from any app.
 - Recent transcripts (opt-in), reopen with one click from the idle screen or the menu bar.
 - Menu bar waveform with recent transcripts and “Transcribe a file…”.
-- Bilingual interface: Italian and English, following the system by default.
+- Six interface languages: Italian, English, Spanish, French, German and Portuguese.
 - First-run onboarding with key validation and a link to create a key.
+- Optional AI summary and action items, in a separate window and never mixed into the verbatim transcript.
+- Subtitle editor: edit cue text and start/end times, add/delete cues, realign ends, export SRT/VTT/TXT.
+- Search across local history by text or speaker name.
+- Glossary learning: when you rename speakers, add those names to the glossary in one click.
+- Drop an audio file directly on the menu-bar waveform.
 - `--doctor` and a readable log for support.
 - Empty and offline states explain what happened and keep the file safe with a retry in place.
 - Cross-slice speaker re-identification: local speaker numbers that restart at a chunk seam are merged when the overlap text is strong enough.
@@ -110,7 +124,7 @@ swift build -c release
 .build/release/Voce --transcribe file.m4a --out file.txt
 ```
 
-Options: `--out`, `--format txt|srt|vtt`, `--language auto|it|en`, `--model`, `--no-cleanup`, `--quiet`, `--verbose`, `--doctor`, `--version`, `--help`.
+Options: `--out`, `--format txt|srt|vtt`, `--language auto|it|en|es|fr|de|pt`, `--model`, `--no-cleanup`, `--quiet`, `--verbose`, `--doctor`, `--version`, `--help`.
 
 ## Your key
 

@@ -132,6 +132,17 @@ public struct TranscriptSummary: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+/// One search result from local history: metadata plus a short context snippet.
+public struct TranscriptSearchHit: Sendable, Equatable {
+    public let summary: TranscriptSummary
+    public let snippet: String
+
+    public init(summary: TranscriptSummary, snippet: String) {
+        self.summary = summary
+        self.snippet = snippet
+    }
+}
+
 /// Local transcript history in Application Support. One JSON file per record plus a small
 /// `index.json`, so listing never reads full transcripts. Capped, deletable, 0600.
 public struct TranscriptArchive: Sendable {
@@ -235,6 +246,48 @@ public struct TranscriptArchive: Sendable {
             summaries[index] = updated.summary
             try? writeIndex(summaries)
         }
+    }
+
+    /// Case- and accent-insensitive search over archived transcript text and speaker names.
+    /// Small by design (at most `maxRecords`), so it runs off the main thread.
+    public func search(_ query: String, limit: Int = 20) -> [TranscriptSearchHit] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty, limit > 0 else { return [] }
+        var hits: [TranscriptSearchHit] = []
+        for summary in list() {
+            guard hits.count < limit else { break }
+            guard let record = try? load(id: summary.id) else { continue }
+            if let range = record.text.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) {
+                hits.append(TranscriptSearchHit(
+                    summary: summary,
+                    snippet: Self.snippet(in: record.text, around: range)
+                ))
+                continue
+            }
+            if record.speakerNames.values.contains(where: {
+                $0.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+            }) {
+                let names = record.speakerNames.values.sorted().joined(separator: ", ")
+                hits.append(TranscriptSearchHit(
+                    summary: summary,
+                    snippet: names.isEmpty ? record.text.prefix(120).description : names
+                ))
+            }
+        }
+        return hits
+    }
+
+    /// A single-line window around a match, with ellipses at the edges.
+    static func snippet(in text: String, around range: Range<String.Index>, radius: Int = 70) -> String {
+        let start = text.index(range.lowerBound, offsetBy: -radius, limitedBy: text.startIndex) ?? text.startIndex
+        let end = text.index(range.upperBound, offsetBy: radius, limitedBy: text.endIndex) ?? text.endIndex
+        var value = String(text[start..<end])
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if start > text.startIndex { value = "…" + value }
+        if end < text.endIndex { value += "…" }
+        return value
     }
 
     public func delete(id: UUID) {

@@ -4,10 +4,37 @@ import VoceKit
 /// All user-facing copy, in both languages. Keeping it in one file makes parity trivial:
 /// every string has an Italian and an English version side by side.
 enum Copy {
-    static var lang: InterfaceLanguage { VoceSettings.interfaceLanguage.resolved }
+    static var lang: InterfaceLanguage {
+        #if DEBUG
+        // Snapshot/preview override: VOCE_UI_LANGUAGE=es while reviewing translations.
+        if let raw = ProcessInfo.processInfo.environment["VOCE_UI_LANGUAGE"],
+           let language = InterfaceLanguage(rawValue: raw) {
+            return language.resolved
+        }
+        #endif
+        return VoceSettings.interfaceLanguage.resolved
+    }
 
     static func t(_ it: String, _ en: String) -> String {
-        lang.isItalian ? it : en
+        switch lang {
+        case .italian: return it
+        case .english: return en
+        default: return Translations.text(en, for: lang) ?? en
+        }
+    }
+
+    /// Dynamic strings that need a placeholder keep their shape in every language.
+    static func t6(
+        _ it: String, _ en: String, _ es: String, _ fr: String, _ de: String, _ pt: String
+    ) -> String {
+        switch lang {
+        case .italian: return it
+        case .spanish: return es
+        case .french: return fr
+        case .german: return de
+        case .portuguese: return pt
+        default: return en
+        }
     }
 
     // MARK: - General
@@ -28,9 +55,19 @@ enum Copy {
     static var back: String { t("Indietro", "Back") }
 
     static func wordCount(_ count: Int) -> String {
-        lang.isItalian
-            ? "\(count) \(count == 1 ? "parola" : "parole")"
-            : "\(count) \(count == 1 ? "word" : "words")"
+        switch lang {
+        case .italian: "\(count) \(count == 1 ? "parola" : "parole")"
+        case .spanish: "\(count) \(count == 1 ? "palabra" : "palabras")"
+        case .french: "\(count) \(count == 1 ? "mot" : "mots")"
+        case .german: "\(count) \(count == 1 ? "Wort" : "Wörter")"
+        case .portuguese: "\(count) \(count == 1 ? "palavra" : "palavras")"
+        default: "\(count) \(count == 1 ? "word" : "words")"
+        }
+    }
+
+    static func speakerCount(_ count: Int) -> String {
+        t6("\(count) parlanti", "\(count) speakers", "\(count) hablantes",
+           "\(count) intervenants", "\(count) Sprecher", "\(count) falantes")
     }
 
     static func duration(_ seconds: Double) -> String {
@@ -58,14 +95,12 @@ enum Copy {
     static var dropHere: String { t("Lascia qui", "Drop it here") }
     static var idleMeta: String {
         let formats = AudioFormat.headline.joined(separator: ", ")
-        return t("Pronto · \(formats)", "Ready · \(formats)")
+        return t6("Pronto · \(formats)", "Ready · \(formats)", "Listo · \(formats)",
+                  "Prêt · \(formats)", "Bereit · \(formats)", "Pronto · \(formats)")
     }
 
     static func idleStatus(model: TranscriptionModel, language: TranscriptionLanguage) -> String {
-        t(
-            "\(language.displayName(for: .italian)) · \(model.displayName)",
-            "\(language.displayName(for: .english)) · \(model.displayName)"
-        )
+        "\(language.displayName(for: lang)) · \(model.displayName)"
     }
 
     static var recentTitle: String { t("Recenti", "Recent") }
@@ -98,35 +133,74 @@ enum Copy {
           "Edits apply to copy and save; subtitles keep the original.")
     }
     static var export: String { t("Esporta", "Export") }
+    static var subtitleEditorTitle: String { t("Sottotitoli", "Subtitles") }
+    static var subtitleEditorHint: String {
+        t("Modifica tempi e testo; le modifiche valgono per l'esportazione.",
+          "Edit times and text; changes apply to exports.")
+    }
+    static var subtitleStart: String { t("Inizio", "Start") }
+    static var subtitleEnd: String { t("Fine", "End") }
+    static var subtitleText: String { t("Testo", "Text") }
+    static var subtitleAdd: String { t("Aggiungi", "Add") }
+    static var subtitleDelete: String { t("Elimina", "Delete") }
+    static var subtitleAlign: String { t("Allinea", "Align") }
+    static var menuEditSubtitles: String { t("Modifica sottotitoli…", "Edit subtitles…") }
+    static var saveFailedShort: String { t("Impossibile salvare", "Couldn't save") }
+    static func subtitleEditorStatus(_ count: Int) -> String {
+        t6("\(count) sottotitoli", "\(count) cues", "\(count) subtítulos",
+           "\(count) sous-titres", "\(count) Untertitel", "\(count) legendas")
+    }
+    static var summary: String { t("Riassunto", "Summary") }
+    static var summaryTitle: String { t("Riassunto della riunione", "Meeting summary") }
+    static var summaryGenerating: String { t("Genero il riassunto…", "Generating summary…") }
+    static var summaryDisclaimer: String {
+        t("Generato dall'AI dalla trascrizione. Verifica nomi, date e decisioni.",
+          "AI-generated from the transcript. Check names, dates and decisions.")
+    }
+    static var summaryRegenerate: String { t("Rigenera", "Regenerate") }
+    static var summaryFailed: String { t("Non riesco a generare il riassunto", "Couldn't generate the summary") }
     static var transcript: String { t("Trascrizione", "Transcript") }
     static var noSpeakers: String { t("Nessun parlante riconosciuto", "No speakers detected") }
     static func queuePosition(_ index: Int, _ total: Int) -> String {
-        t("File \(index) di \(total)", "File \(index) of \(total)")
+        t6("File \(index) di \(total)", "File \(index) of \(total)", "Archivo \(index) de \(total)",
+           "Fichier \(index) sur \(total)", "Datei \(index) von \(total)", "Arquivo \(index) de \(total)")
     }
     static func queueMore(_ count: Int) -> String {
-        t("+\(count) altri file", "+\(count) more files")
+        t6("+\(count) altri file", "+\(count) more files", "+\(count) archivos más",
+           "+\(count) autres fichiers", "+\(count) weitere Dateien", "+\(count) arquivos a mais")
     }
     static func queueCompleted(_ count: Int) -> String {
-        t("\(count) file trascritti", "\(count) files transcribed")
+        t6("\(count) file trascritti", "\(count) files transcribed", "\(count) archivos transcritos",
+           "\(count) fichiers transcrits", "\(count) Dateien transkribiert", "\(count) arquivos transcritos")
     }
     static func queuePartial(_ done: Int, _ failed: Int) -> String {
-        t("\(done) file trascritti · \(failed) non riusciti", "\(done) transcribed · \(failed) failed")
+        t6("\(done) file trascritti · \(failed) non riusciti", "\(done) transcribed · \(failed) failed",
+           "\(done) transcritos · \(failed) fallidos", "\(done) transcrits · \(failed) échoués",
+           "\(done) transkribiert · \(failed) fehlgeschlagen", "\(done) transcritos · \(failed) falharam")
     }
     static func queueFailedAll(_ count: Int) -> String {
-        t("Nessun file trascritto · \(count) errori", "No files transcribed · \(count) errors")
+        t6("Nessun file trascritto · \(count) errori", "No files transcribed · \(count) errors",
+           "Ningún archivo transcrito · \(count) errores", "Aucun fichier transcrit · \(count) erreurs",
+           "Keine Datei transkribiert · \(count) Fehler", "Nenhum arquivo transcrito · \(count) erros")
     }
     static func queueCancelled(_ done: Int) -> String {
-        t("Coda interrotta · \(done) file completati", "Queue stopped · \(done) files completed")
+        t6("Coda interrotta · \(done) file completati", "Queue stopped · \(done) files completed",
+           "Cola detenida · \(done) archivos completados", "File arrêtée · \(done) fichiers terminés",
+           "Warteschlange gestoppt · \(done) Dateien fertig", "Fila interrompida · \(done) arquivos concluídos")
     }
     static func offline(_ name: String) -> String {
-        t("Rete assente. \(name) resta qui: riprova quando sei online.",
-          "No connection. \(name) is safe here: try again when you are online.")
+        t6("Rete assente. \(name) resta qui: riprova quando sei online.",
+           "No connection. \(name) is safe here: try again when you are online.",
+           "Sin conexión. \(name) está a salvo: reintenta cuando estés en línea.",
+           "Pas de connexion. \(name) est en sécurité : réessayez une fois en ligne.",
+           "Keine Verbindung. \(name) ist sicher: Versuche es online erneut.",
+           "Sem conexão. \(name) está seguro: tente novamente quando estiver online.")
     }
 
     static func caption(words: Int, model: TranscriptionModel, duration: Double, speakers: Int) -> String {
         var parts = [wordCount(words), model.displayName, Copy.duration(duration)]
         if speakers > 1 {
-            parts.append(t("\(speakers) parlanti", "\(speakers) speakers"))
+            parts.append(speakerCount(speakers))
         }
         return parts.joined(separator: "  ·  ")
     }
@@ -145,9 +219,23 @@ enum Copy {
           "Replace the labels with real names. Applies to copy, save and subtitles.")
     }
     static func speakerLabel(_ index: Int) -> String {
-        t("Parlante \(index)", "Speaker \(index)")
+        t6("Parlante \(index)", "Speaker \(index)", "Hablante \(index)",
+           "Intervenant \(index)", "Sprecher \(index)", "Falante \(index)")
     }
     static var speakerPlaceholder: String { t("Nome", "Name") }
+    static var glossaryAddNames: String {
+        t("Aggiungi i nomi al glossario", "Add these names to the glossary")
+    }
+    static var glossaryAddHelp: String {
+        t("I nomi restano su questo Mac e aiutano le prossime trascrizioni.",
+          "Names stay on this Mac and help the next transcriptions.")
+    }
+    static var glossaryNamesAdded: String {
+        t("Nomi aggiunti al glossario", "Names added to the glossary")
+    }
+    static var glossaryNamesNotAdded: String {
+        t("Non riesco ad aggiornare il glossario", "Couldn't update the glossary")
+    }
 
     // MARK: - Errors and alerts
 
@@ -171,7 +259,8 @@ enum Copy {
     static var copiedAnnouncement: String { t("Copiato negli appunti", "Copied to the clipboard") }
     static var importFailed: String { t("Non riesco a leggere il file", "Couldn't read the file") }
     static func percent(_ value: Int) -> String {
-        t("\(value) per cento", "\(value) percent")
+        t6("\(value) per cento", "\(value) percent", "\(value) por ciento",
+           "\(value) pour cent", "\(value) Prozent", "\(value) por cento")
     }
 
     // MARK: - Onboarding
@@ -219,7 +308,9 @@ enum Copy {
         t("Ho trovato una chiave già configurata.", "A key is already configured.")
     }
     static func onboardingPending(_ name: String) -> String {
-        t("Appena configurato, trascrivo \(name).", "Once set up, I'll transcribe \(name).")
+        t6("Appena configurato, trascrivo \(name).", "Once set up, I'll transcribe \(name).",
+           "Una vez configurado, transcribiré \(name).", "Une fois configuré, je transcrirai \(name).",
+           "Sobald eingerichtet, transkribiere ich \(name).", "Assim que configurado, vou transcrever \(name).")
     }
     static var keyAlreadyConfigured: String {
         t("Una chiave è già configurata. Incollane una nuova solo per sostituirla.",
@@ -252,7 +343,9 @@ enum Copy {
     static var keyValid: String { t("Chiave valida", "Valid key") }
     static var keyChecking: String { t("Verifico…", "Checking…") }
     static func creditRemaining(_ value: String) -> String {
-        t("Credito disponibile: $\(value)", "Credit available: $\(value)")
+        t6("Credito disponibile: $\(value)", "Credit available: $\(value)",
+           "Crédito disponible: $\(value)", "Crédit disponible : \(value) $",
+           "Verfügbares Guthaben: \(value) $", "Crédito disponível: $\(value)")
     }
 
     static var sectionTranscription: String { t("Trascrizione", "Transcription") }
@@ -285,7 +378,8 @@ enum Copy {
     }
     static var historyEmpty: String { t("Nessuna trascrizione salvata", "No saved transcripts") }
     static func historyCount(_ count: Int) -> String {
-        t("\(count) salvate", "\(count) saved")
+        t6("\(count) salvate", "\(count) saved", "\(count) guardadas",
+           "\(count) enregistrées", "\(count) gespeichert", "\(count) salvas")
     }
     static var historyCleared: String { t("Cronologia cancellata", "History cleared") }
 
@@ -358,6 +452,22 @@ enum Copy {
     static var menuExportVTT: String { t("Esporta WebVTT…", "Export WebVTT…") }
     static var menuRenameSpeakers: String { t("Rinomina parlanti…", "Rename speakers…") }
     static var menuShowHistory: String { t("Cronologia", "History") }
+    static var menuSearchHistory: String { t("Cerca nella cronologia…", "Search history…") }
+    static var historySearchTitle: String { t("Cerca nella cronologia", "Search history") }
+    static var historySearchPlaceholder: String {
+        t("Cerca nel testo o nei nomi", "Search text or names")
+    }
+    static var historySearchHint: String {
+        t("Cerca in tutte le trascrizioni conservate, solo su questo Mac.",
+          "Search every saved transcript, on this Mac only.")
+    }
+    static var historySearchSearching: String { t("Cerco…", "Searching…") }
+    static var historySearchEmpty: String { t("Nessuna trascrizione salvata", "No saved transcripts") }
+    static var historySearchNoResults: String { t("Nessun risultato", "No results") }
+    static func historySearchCount(_ count: Int) -> String {
+        t6("\(count) risultati", "\(count) results", "\(count) resultados",
+           "\(count) résultats", "\(count) Ergebnisse", "\(count) resultados")
+    }
     static var menuCancelWork: String { t("Annulla trascrizione", "Cancel transcription") }
     static var menuNewTranscript: String { t("Nuova trascrizione", "New transcription") }
     static var menuEdit: String { t("Modifica", "Edit") }
@@ -374,6 +484,9 @@ enum Copy {
     static var menuTranscribeFile: String { t("Trascrivi un file…", "Transcribe a file…") }
     static var menuRecent: String { t("Recenti", "Recent") }
     static var statusTooltip: String { t("Voce — trascrivi un audio", "Voce — transcribe audio") }
+    static var statusDropHelp: String {
+        t("Trascina un audio sull'icona per trascriverlo.", "Drop an audio file on the icon to transcribe it.")
+    }
     static var aboutCredits: String {
         t("Trascrizione audio per macOS, con OpenRouter.", "Audio transcription for macOS, powered by OpenRouter.")
     }

@@ -58,3 +58,56 @@ struct SubtitleFormatterTests {
         #expect(srt.contains("00:00:01,000 --> 00:00:05,000"))
     }
 }
+
+struct SubtitleCueTests {
+    @Test func buildsCuesWithExplicitEnds() {
+        let cues = SubtitleFormatter.cues(
+            from: [
+                TranscriptSegment(speaker: 1, text: "Ciao", start: 1),
+                TranscriptSegment(speaker: 2, text: "Mondo", start: 4)
+            ],
+            duration: 10,
+            speakerNames: [1: "Giulia"],
+            label: "Parlante"
+        )
+        #expect(cues.count == 2)
+        #expect(cues[0].start == 1)
+        #expect(cues[0].end == 4)
+        #expect(cues[0].text == "Giulia: Ciao")
+        #expect(cues[1].end == 10)
+    }
+
+    @Test func rendersCustomCueTimings() {
+        let cues = [
+            SubtitleCue(start: 0.5, end: 2.25, text: "Uno"),
+            SubtitleCue(start: 3, end: 4.5, text: "Due")
+        ]
+        let srt = SubtitleFormatter.render(.srt, cues: cues)
+        #expect(srt.contains("00:00:00,500 --> 00:00:02,250"))
+        #expect(srt.contains("00:00:03,000 --> 00:00:04,500"))
+        #expect(srt.contains("2\n00:00:03,000"))
+        let vtt = SubtitleFormatter.render(.vtt, cues: cues)
+        #expect(vtt.hasPrefix("WEBVTT"))
+        #expect(vtt.contains("00:00:00.500 --> 00:00:02.250"))
+    }
+
+    @Test func skipsEmptyCuesAndSorts() {
+        let cues = [
+            SubtitleCue(start: 5, end: 6, text: "Secondo"),
+            SubtitleCue(start: 0, end: 1, text: "Primo"),
+            SubtitleCue(start: 2, end: 3, text: "  ")
+        ]
+        let srt = SubtitleFormatter.render(.srt, cues: cues)
+        #expect(srt.contains("1\n00:00:00,000"))
+        #expect(srt.contains("2\n00:00:05,000"))
+        #expect(!srt.contains("00:00:02,000"))
+    }
+
+    @Test func parsesTimestamps() {
+        #expect(SubtitleFormatter.parseTimestamp("00:01:02,500") == 62.5)
+        #expect(SubtitleFormatter.parseTimestamp("01:02.250") == 62.25)
+        #expect(SubtitleFormatter.parseTimestamp("12.5") == 12.5)
+        #expect(SubtitleFormatter.parseTimestamp("garbage") == nil)
+        #expect(SubtitleFormatter.parseTimestamp("00:99:00") == 5940)
+    }
+}

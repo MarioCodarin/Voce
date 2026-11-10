@@ -10,6 +10,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private weak var appDelegate: AppDelegate?
     private let archive = TranscriptArchive()
     private let recentMenu = NSMenu()
+    private var dropView: StatusDropView?
 
     init(controller: VoceController, appDelegate: AppDelegate) {
         self.controller = controller
@@ -31,6 +32,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             button.image = Assets.menuBarIcon()
             button.toolTip = Copy.statusTooltip
             button.setAccessibilityLabel(Copy.statusTooltip)
+
+            let overlay = StatusDropView(frame: button.bounds)
+            overlay.autoresizingMask = [.width, .height]
+            overlay.onClick = { [weak self] in self?.showMenu() }
+            overlay.onDrop = { [weak self] urls in
+                guard let self else { return }
+                self.controller?.open(urls: urls)
+                self.appDelegate?.showMainWindow(nil)
+            }
+            button.addSubview(overlay)
+            dropView = overlay
         }
         recentMenu.delegate = self
         statusItem.isVisible = VoceSettings.menuBarEnabled
@@ -53,6 +65,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let recent = NSMenuItem(title: Copy.menuRecent, action: nil, keyEquivalent: "")
         recent.submenu = recentMenu
         menu.addItem(recent)
+
+        let search = NSMenuItem(title: Copy.menuSearchHistory, action: #selector(openSearch), keyEquivalent: "")
+        search.target = self
+        menu.addItem(search)
         rebuildRecent()
 
         menu.addItem(.separator())
@@ -90,6 +106,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if menu === recentMenu { rebuildRecent() }
     }
 
+    private func showMenu() {
+        guard let menu = statusItem.menu, let view = dropView else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + 4), in: view)
+    }
+
     @objc private func openVoce() {
         appDelegate?.showMainWindow(nil)
     }
@@ -103,6 +124,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
         controller?.openRecentByID(id)
         appDelegate?.showMainWindow(nil)
+    }
+
+    @objc private func openSearch() {
+        appDelegate?.showHistorySearch(nil)
     }
 
     @objc private func openSettings() {

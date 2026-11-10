@@ -6,16 +6,17 @@ import VoceKit
 final class SpeakerRenameSheet: NSWindowController, NSWindowDelegate {
     private let indices: [Int]
     private let label: String
-    private let onSave: ([Int: String]) -> Void
+    private let onSave: ([Int: String], Bool) -> Void
+    private let glossaryCheck = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private var fields: [Int: NSTextField] = [:]
     private var didSave = false
 
-    init(indices: [Int], names: [Int: String], label: String, onSave: @escaping ([Int: String]) -> Void) {
+    init(indices: [Int], names: [Int: String], label: String, onSave: @escaping ([Int: String], Bool) -> Void) {
         self.indices = indices
         self.label = label
         self.onSave = onSave
 
-        let height = min(700, 210 + indices.count * 42)
+        let height = min(740, 270 + indices.count * 42)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 440, height: CGFloat(height)),
             styleMask: [.titled, .closable],
@@ -88,15 +89,32 @@ final class SpeakerRenameSheet: NSWindowController, NSWindowDelegate {
         save.style(accent: true)
         save.keyEquivalent = "\r"
 
+        glossaryCheck.title = Copy.glossaryAddNames
+        glossaryCheck.state = .on
+        glossaryCheck.font = Typo.label
+        glossaryCheck.toolTip = Copy.glossaryAddHelp
+
+        let glossaryHelp = NSTextField(wrappingLabelWithString: Copy.glossaryAddHelp)
+        glossaryHelp.font = Typo.caption
+        glossaryHelp.textColor = Palette.muted
+        glossaryHelp.preferredMaxLayoutWidth = 376
+
+        let glossary = NSStackView(views: [glossaryCheck, glossaryHelp])
+        glossary.orientation = .vertical
+        glossary.alignment = .leading
+        glossary.spacing = Space.xs
+        glossary.translatesAutoresizingMaskIntoConstraints = false
+
         let buttons = NSStackView(views: [NSView(), cancel, save])
         buttons.orientation = .horizontal
         buttons.spacing = Space.s
 
-        let stack = NSStackView(views: [title, body, rows, buttons])
+        let stack = NSStackView(views: [title, body, rows, glossary, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Space.m
         stack.setCustomSpacing(Space.l, after: body)
+        stack.setCustomSpacing(Space.l, after: rows)
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
 
@@ -107,6 +125,7 @@ final class SpeakerRenameSheet: NSWindowController, NSWindowDelegate {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -Space.l),
             body.widthAnchor.constraint(equalTo: stack.widthAnchor),
             rows.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            glossary.widthAnchor.constraint(equalTo: stack.widthAnchor),
             buttons.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
     }
@@ -124,7 +143,7 @@ final class SpeakerRenameSheet: NSWindowController, NSWindowDelegate {
         } else {
             window?.orderOut(nil)
         }
-        onSave(names)
+        onSave(names, glossaryCheck.state == .on)
     }
 
     @objc private func cancelClicked() {

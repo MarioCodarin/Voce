@@ -60,6 +60,40 @@ public enum Glossary {
         return all
     }
 
+    /// Adds terms to the glossary in effect, skipping duplicates and headings.
+    /// Returns false when the current file cannot be read (it is never overwritten blindly).
+    @discardableResult
+    public static func add(terms newTerms: [String]) -> Bool {
+        guard case .loaded(let text) = read() else { return false }
+        let merged = adding(newTerms, to: text)
+        guard merged != text else { return true }
+        let saved = store(text: merged)
+        if saved { Log.info(.settings, "glossary learned \(newTerms.count) term(s)") }
+        return saved
+    }
+
+    /// Pure merge used by `add` and tests: keeps headings, deduplicates case-insensitively,
+    /// and respects the same cap as the request builder.
+    static func adding(_ newTerms: [String], to text: String) -> String {
+        let existing = terms(in: text)
+        var seen = Set(existing.map { $0.lowercased() })
+        var additions: [String] = []
+        for raw in newTerms {
+            let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !term.isEmpty, !term.hasPrefix("#"), seen.insert(term.lowercased()).inserted else { continue }
+            additions.append(term)
+        }
+        guard !additions.isEmpty else { return normalizedText(text) }
+        let room = max(0, maxTerms - existing.count)
+        guard room > 0 else { return normalizedText(text) }
+        additions = Array(additions.prefix(room))
+
+        var merged = normalizedText(text)
+        if !merged.isEmpty { merged += "\n\n" }
+        merged += additions.joined(separator: "\n")
+        return normalizedText(merged)
+    }
+
     /// Saves `text` as one term per line. An empty glossary removes the file.
     @discardableResult
     public static func store(text: String) -> Bool {

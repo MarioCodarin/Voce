@@ -27,7 +27,7 @@ struct CLIArguments: Equatable, Sendable {
 
       --out FILE          output path (default: next to the input)
       --format FORMAT     txt, srt or vtt (default: txt)
-      --language LANG     auto, it or en
+      --language LANG     auto, it, en, es, fr, de or pt
       --model MODEL       OpenRouter model id (default: from Settings)
       --no-cleanup        skip the punctuation pass
       --quiet             no progress output
@@ -114,6 +114,10 @@ struct CLIArguments: Equatable, Sendable {
         case "auto", "automatic": .automatic
         case "it", "italian", "italiano": .italian
         case "en", "english", "inglese": .english
+        case "es", "spanish", "español", "espanol": .spanish
+        case "fr", "french", "français", "francais": .french
+        case "de", "german", "deutsch", "tedesco": .german
+        case "pt", "portuguese", "português", "portugues": .portuguese
         default: nil
         }
     }

@@ -21,20 +21,44 @@ public enum TranscriptionModel: String, CaseIterable, Sendable, Codable {
 
     /// One-line description shown under the picker.
     public func caption(for interface: InterfaceLanguage) -> String {
-        let it = interface.isItalian
+        let language = interface.resolved
         switch self {
         case .maiTranscribe2:
-            return it
-                ? "Consigliato · ~$0,16 a riunione · riconosce chi parla"
-                : "Recommended · ~$0.16 per meeting · identifies speakers"
+            switch language {
+            case .italian: return "Consigliato · ~$0,16 a riunione · riconosce chi parla"
+            case .spanish: return "Recomendado · ~0,16 $ por reunión · identifica hablantes"
+            case .french: return "Recommandé · ~0,16 $ par réunion · identifie les intervenants"
+            case .german: return "Empfohlen · ~0,16 $ pro Besprechung · erkennt Sprecher"
+            case .portuguese: return "Recomendado · ~0,16 $ por reunião · identifica falantes"
+            default: return "Recommended · ~$0.16 per meeting · identifies speakers"
+            }
         case .scribeV2:
-            return it
-                ? "~$0,36 a riunione · frasi più curate, più lento"
-                : "~$0.36 per meeting · tidier sentences, slower"
+            switch language {
+            case .italian: return "~$0,36 a riunione · frasi più curate, più lento"
+            case .spanish: return "~0,36 $ por reunión · frases más cuidadas, más lento"
+            case .french: return "~0,36 $ par réunion · phrases plus soignées, plus lent"
+            case .german: return "~0,36 $ pro Besprechung · sauberere Sätze, langsamer"
+            case .portuguese: return "~0,36 $ por reunião · frases mais cuidadas, mais lento"
+            default: return "~$0.36 per meeting · tidier sentences, slower"
+            }
         case .voxtralSmall3:
-            return it ? "~$0,39 a riunione · alternativa" : "~$0.39 per meeting · alternative"
+            switch language {
+            case .italian: return "~$0,39 a riunione · alternativa"
+            case .spanish: return "~0,39 $ por reunión · alternativa"
+            case .french: return "~0,39 $ par réunion · alternative"
+            case .german: return "~0,39 $ pro Besprechung · Alternative"
+            case .portuguese: return "~0,39 $ por reunião · alternativa"
+            default: return "~$0.39 per meeting · alternative"
+            }
         case .whisperLargeV3:
-            return it ? "~$0,04 a riunione · modello precedente" : "~$0.04 per meeting · previous model"
+            switch language {
+            case .italian: return "~$0,04 a riunione · modello precedente"
+            case .spanish: return "~0,04 $ por reunión · modelo anterior"
+            case .french: return "~0,04 $ par réunion · modèle précédent"
+            case .german: return "~0,04 $ pro Besprechung · vorheriges Modell"
+            case .portuguese: return "~0,04 $ por reunião · modelo anterior"
+            default: return "~$0.04 per meeting · previous model"
+            }
         }
     }
 

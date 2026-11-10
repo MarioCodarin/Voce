@@ -51,7 +51,7 @@ Requirements: macOS 14+, Swift 6 (Command Line Tools are enough), and optionally
 ## Adding an audio language or interface language
 
 - Audio language: add a case to `TranscriptionLanguage` with its request code, speaker label and localized display name.
-- Interface language: add a case to `InterfaceLanguage`, then a column in `Copy`. The compiler will point at switches that need updating.
+- Interface language: add a case to `InterfaceLanguage` and `TranscriptionLanguage`, a dictionary to `Translations.swift`, and the dynamic variants in `Copy.t6`/`VoceKit` switches. Snapshot it with `VOCE_UI_LANGUAGE=xx` in a debug build.
 
 ## Adding an export format
 

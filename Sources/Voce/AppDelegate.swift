@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var preferences: PreferencesWindowController?
     private var statusItem: StatusItemController?
     private var globalHotKey: GlobalHotKey?
+    private var historySearch: HistorySearchWindowController?
     /// Set once the user agreed to close, so quitting afterwards doesn't ask a second time.
     private var closeConfirmed = false
 
@@ -167,6 +168,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .credits: credits
         ])
         NSApp.activate()
+    }
+
+    @objc func showHistorySearch(_ sender: Any?) {
+        if historySearch == nil {
+            let window = HistorySearchWindowController()
+            window.onOpen = { [weak self] id in
+                self?.controller?.openRecentByID(id)
+                self?.showMainWindow(nil)
+            }
+            historySearch = window
+        }
+        historySearch?.showWindow(nil)
     }
 
     @objc func openGuide(_ sender: Any?) {

@@ -44,6 +44,8 @@ final class VoceController: NSViewController {
     let archive = TranscriptArchive()
     private var state = State.idle
     private var onboarding: OnboardingWindowController?
+    private var summaryWindow: SummaryWindowController?
+    private var subtitleEditor: SubtitleEditorWindowController?
     private var pendingAfterOnboarding: [URL] = []
 
     // Sequential batch state. The queue survives between files, not between windows.
@@ -95,6 +97,8 @@ final class VoceController: NSViewController {
         resultView.onCopy = { [weak self] in self?.copyTranscript() }
         resultView.onExport = { [weak self] format in self?.export(format) }
         resultView.onRename = { [weak self] in self?.renameSpeakers() }
+        resultView.onSummarize = { [weak self] in self?.showSummary() }
+        resultView.onEditSubtitles = { [weak self] in self?.showSubtitleEditor() }
         resultView.onNew = { [weak self] in self?.newTranscription() }
         resultView.onSelectQueueItem = { [weak self] index in self?.selectQueueSession(index) }
         resultView.onTextChanged = { [weak self] text in self?.transcriptTextChanged(text) }
@@ -436,6 +440,42 @@ final class VoceController: NSViewController {
         }
     }
 
+    @objc func showSubtitleEditor() {
+        resultView.commitPendingEdit()
+        guard let session = currentSession else { return }
+        let cues = SubtitleFormatter.cues(
+            from: session.outcome.transcript.segments,
+            duration: session.outcome.durationSeconds,
+            speakerNames: session.speakerNames,
+            label: session.outcome.speakerLabel
+        )
+        guard !cues.isEmpty else { return }
+        subtitleEditor?.close()
+        let editor = SubtitleEditorWindowController(
+            fileName: session.sourceName,
+            cues: cues,
+            duration: session.outcome.durationSeconds
+        )
+        editor.onClose = { [weak self] in self?.subtitleEditor = nil }
+        subtitleEditor = editor
+        editor.showWindow(nil)
+    }
+
+    @objc func showSummary() {
+        resultView.commitPendingEdit()
+        guard let session = currentSession,
+              !session.outcome.transcript.text.isEmpty else { return }
+        summaryWindow?.close()
+        let window = SummaryWindowController(
+            fileName: session.sourceName,
+            transcript: session.outcome.transcript.text,
+            language: session.outcome.language
+        )
+        window.onClose = { [weak self] in self?.summaryWindow = nil }
+        summaryWindow = window
+        window.showWindow(nil)
+    }
+
     // MARK: - Speaker names
 
     @objc func renameSpeakers() {
@@ -450,12 +490,16 @@ final class VoceController: NSViewController {
             indices: indices,
             names: session.speakerNames,
             label: session.outcome.speakerLabel
-        ) { [weak self] names in
+        ) { [weak self] names, addToGlossary in
             guard let self, var updated = self.currentSession else { return }
             updated.speakerNames = names
             if let id = updated.recordID {
                 self.archive.updateSpeakerNames(id: id, names: names)
                 updated.kept = true
+            }
+            if addToGlossary, !names.isEmpty {
+                let saved = Glossary.add(terms: Array(names.values))
+                Announcer.say(saved ? Copy.glossaryNamesAdded : Copy.glossaryNamesNotAdded)
             }
             self.replaceSession(updated)
             self.render(.done(updated))
@@ -714,7 +758,7 @@ extension VoceController: NSMenuItemValidation {
             if case .working = state { return true }
             return false
         case #selector(copyTranscript), #selector(saveTranscript),
-             #selector(exportSRT), #selector(exportVTT):
+             #selector(exportSRT), #selector(exportVTT), #selector(showSummary), #selector(showSubtitleEditor):
             if case .done = state { return true }
             return false
         case #selector(renameSpeakers):
@@ -837,6 +881,27 @@ extension VoceController {
                 kept: false
             )
             render(.done(session))
+        case "subtitle-editor":
+            resetQueue()
+            let outcome = TranscriptionOutcome(
+                transcript: RichTranscript(segments: [
+                    TranscriptSegment(speaker: 1, text: "Buongiorno a tutti, iniziamo la riunione.", start: 0),
+                    TranscriptSegment(speaker: 2, text: "Primo punto: il budget per il viaggio.", start: 5),
+                    TranscriptSegment(speaker: 1, text: "Va bene, lo approviamo.", start: 9)
+                ]),
+                model: .maiTranscribe2,
+                durationSeconds: 14
+            )
+            let session = Session(
+                outcome: outcome,
+                sourceName: "Riunione di esempio.m4a",
+                sourceURL: nil,
+                speakerNames: [1: "Anna", 2: "Marco"],
+                recordID: nil,
+                kept: false
+            )
+            render(.done(session))
+            showSubtitleEditor()
         case "result-edit":
             resetQueue()
             let outcome = TranscriptionOutcome(

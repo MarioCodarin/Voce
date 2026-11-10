@@ -19,8 +19,9 @@ enum TranscriptionConfig {
     /// Total attempts per chunk for transient failures (network, 429, 5xx).
     static let maxAttempts = 3
 
-    /// Cheap chat model for the cleanup pass.
+    /// Cheap chat model for the cleanup pass and the optional summary.
     static let cleanupModel = "openai/gpt-4o-mini"
+    static let summaryModel = "openai/gpt-4o-mini"
     static let cleanupTimeout: TimeInterval = 120
     /// Long meetings are polished in chunks this size so output never gets truncated.
     static let cleanupChunkCharacters = 12_000

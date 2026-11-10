@@ -31,8 +31,17 @@ public enum GlobalShortcut: String, CaseIterable, Sendable, Codable {
 
     public func displayName(for interface: InterfaceLanguage) -> String {
         switch self {
-        case .off: interface.isItalian ? "Disattivata" : "Off"
-        default: symbol
+        case .off:
+            switch interface.resolved {
+            case .italian: "Disattivata"
+            case .spanish: "Desactivada"
+            case .french: "Désactivée"
+            case .german: "Deaktiviert"
+            case .portuguese: "Desativada"
+            default: "Off"
+            }
+        default:
+            symbol
         }
     }
 
