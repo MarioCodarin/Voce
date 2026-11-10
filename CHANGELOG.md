@@ -2,6 +2,32 @@
 
 All notable changes to Voce. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-11-10
+
+### Added
+
+- Summaries are persisted with the transcript when local history is enabled, reopen without another API call, and can be saved as Markdown from the summary window.
+- **Retry failed files** from the result banner, without re-running successful files. Fatal key/network failures stop the batch; the banner keeps the successes accessible.
+- Subtitle waveform timeline: waveform envelope, cue blocks, click/drag seek, play/pause of the original audio when available, and keyboard re-timing (`⌥←/→` moves a cue, `⌥↑/↓` trims its end, Shift for 1 s).
+- Localization catalog validator runs in `scripts/test.sh` and CI: every static English string must have ES/FR/DE/PT translations with no duplicates or stale keys.
+- Release tooling: `scripts/release.sh` builds zip/DMG/checksums; optional Developer ID signing, hardened runtime, `notarytool` submission and stapling. See `docs/DISTRIBUTION.md`.
+- Archive search now also matches the optional meeting summary.
+
+### Changed
+
+- `TranscriptRecord` gained an optional `meetingSummary`; old records decode without it and remain readable.
+- The subtitle editor keeps its table and timeline in sync, including selection and playback position.
+- Version bumped to 2.3.0 (build 5).
+
+### Security
+
+- Summaries stay local in the history archive when enabled; they are not uploaded. The summary request sends the full transcript only after the user presses Summary.
+- Release/notarization credentials are never stored in the repository; the scripts require them from the environment/keychain.
+
+### Tests
+
+- 122 tests, adding waveform extraction, summary persistence, old-record decoding and search-by-summary; the localization catalog check runs alongside the suite.
+
 ## [2.2.0] — 2026-11-10
 
 ### Added

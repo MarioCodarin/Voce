@@ -1,11 +1,13 @@
 import AppKit
 import VoceKit
+import UniformTypeIdentifiers
 
 /// Optional AI summary/action items in their own window, visually separate from the
 /// verbatim transcript. Generation starts when the window opens.
 @MainActor
 final class SummaryWindowController: NSWindowController, NSWindowDelegate {
     var onClose: (() -> Void)?
+    var onSummary: ((String) -> Void)?
 
     private let fileName: String
     private let transcript: String
@@ -17,11 +19,13 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
     private let textView = NSTextView()
     private let copyButton = ActionButton(title: "", target: nil, action: nil)
     private let regenerateButton = ActionButton(title: "", target: nil, action: nil)
+    private let saveButton = ActionButton(title: "", target: nil, action: nil)
     private var task: Task<Void, Never>?
     private var copyReset: Task<Void, Never>?
     private var hasGenerated = false
+    private var rawSummary = ""
 
-    init(fileName: String, transcript: String, language: TranscriptionLanguage) {
+    init(fileName: String, transcript: String, language: TranscriptionLanguage, existingSummary: String? = nil) {
         self.fileName = fileName
         self.transcript = transcript
         self.language = language
@@ -38,6 +42,10 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         build(in: window)
+        if let existingSummary, !existingSummary.isEmpty {
+            hasGenerated = true
+            render(existingSummary)
+        }
         window.center()
     }
 
@@ -109,10 +117,16 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
         regenerateButton.target = self
         regenerateButton.action = #selector(regenerateClicked)
 
+        saveButton.title = Copy.summarySaveMarkdown
+        saveButton.style(accent: false)
+        saveButton.target = self
+        saveButton.action = #selector(saveClicked)
+        saveButton.isEnabled = false
+
         let close = ActionButton(title: Copy.close, target: self, action: #selector(closeClicked))
         close.style(accent: false)
 
-        let buttons = NSStackView(views: [statusLabel, NSView(), close, regenerateButton, copyButton])
+        let buttons = NSStackView(views: [statusLabel, NSView(), close, regenerateButton, saveButton, copyButton])
         buttons.orientation = .horizontal
         buttons.alignment = .centerY
         buttons.spacing = Space.s
@@ -147,10 +161,12 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
         guard !hasGenerated else { return }
         hasGenerated = true
         task?.cancel()
+        rawSummary = ""
         textView.string = ""
         statusLabel.stringValue = Copy.summaryGenerating
         statusLabel.textColor = Palette.muted
         copyButton.isEnabled = false
+        saveButton.isEnabled = false
 
         let transcript = self.transcript
         let language = self.language
@@ -173,10 +189,13 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func render(_ summary: String) {
+        rawSummary = summary
         textView.textStorage?.setAttributedString(Self.attributedSummary(summary))
         textView.scrollToBeginningOfDocument(nil)
         statusLabel.stringValue = ""
         copyButton.isEnabled = true
+        saveButton.isEnabled = true
+        onSummary?(summary)
     }
 
     /// Small Markdown subset: headings and bullets become type, `**bold**` becomes weight.
@@ -246,6 +265,23 @@ final class SummaryWindowController: NSWindowController, NSWindowDelegate {
     @objc private func regenerateClicked() {
         hasGenerated = false
         generate()
+    }
+
+    @objc private func saveClicked() {
+        let content = rawSummary
+        guard !content.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        let base = (fileName as NSString).deletingPathExtension
+        panel.nameFieldStringValue = base + ".md"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            statusLabel.stringValue = Copy.saveFailedShort
+            statusLabel.textColor = Palette.accentText
+        }
     }
 
     @objc private func closeClicked() {

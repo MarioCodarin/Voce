@@ -26,10 +26,16 @@ for bundle in "$BIN_DIR"/*.bundle; do
 done
 
 chmod +x "$APP/Contents/MacOS/Voce"
-codesign --force --sign - "$APP" >/dev/null
+
+IDENTITY="${CODESIGN_IDENTITY:--}"
+if [[ "$IDENTITY" == "-" ]]; then
+  codesign --force --sign - "$APP" >/dev/null
+else
+  codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP" >/dev/null
+fi
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
 BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Contents/Info.plist")
 codesign --verify --deep --strict "$APP" >/dev/null
 
-echo "Built $APP — Voce $VERSION ($BUILD)"
+echo "Built $APP — Voce $VERSION ($BUILD), signed by $IDENTITY"

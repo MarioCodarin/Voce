@@ -47,6 +47,7 @@ enum Copy {
     static var copy: String { t("Copia", "Copy") }
     static var copied: String { t("Copiato ✓", "Copied ✓") }
     static var retry: String { t("Riprova", "Try again") }
+    static var retryFailed: String { t("Riprova i non riusciti", "Retry failed files") }
     static var newTranscript: String { t("Nuovo", "New") }
     static var chooseFile: String { t("Scegli…", "Choose…") }
     static var chooseFileMessage: String { t("Scegli un audio da trascrivere", "Choose an audio file to transcribe") }
@@ -134,9 +135,12 @@ enum Copy {
     }
     static var export: String { t("Esporta", "Export") }
     static var subtitleEditorTitle: String { t("Sottotitoli", "Subtitles") }
+    static var subtitleTimeline: String { t("Linea del tempo", "Timeline") }
+    static var subtitlePlay: String { t("Ascolta", "Play") }
+    static var subtitlePause: String { t("Pausa", "Pause") }
     static var subtitleEditorHint: String {
-        t("Modifica tempi e testo; le modifiche valgono per l'esportazione.",
-          "Edit times and text; changes apply to exports.")
+        t("Modifica tempi e testo; valgono per l'esportazione. ⌥←/→ sposta, ⌥↑/↓ accorcia.",
+          "Edit times and text; changes apply to exports. ⌥←/→ moves a cue, ⌥↑/↓ trims its end.")
     }
     static var subtitleStart: String { t("Inizio", "Start") }
     static var subtitleEnd: String { t("Fine", "End") }
@@ -158,6 +162,7 @@ enum Copy {
           "AI-generated from the transcript. Check names, dates and decisions.")
     }
     static var summaryRegenerate: String { t("Rigenera", "Regenerate") }
+    static var summarySaveMarkdown: String { t("Salva .md…", "Save .md…") }
     static var summaryFailed: String { t("Non riesco a generare il riassunto", "Couldn't generate the summary") }
     static var transcript: String { t("Trascrizione", "Transcript") }
     static var noSpeakers: String { t("Nessun parlante riconosciuto", "No speakers detected") }

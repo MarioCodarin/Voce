@@ -14,6 +14,7 @@ final class VoceController: NSViewController {
         var speakerNames: [Int: String]
         var recordID: UUID?
         var kept: Bool
+        var meetingSummary: String?
 
         init(
             id: UUID = UUID(),
@@ -22,7 +23,8 @@ final class VoceController: NSViewController {
             sourceURL: URL?,
             speakerNames: [Int: String],
             recordID: UUID?,
-            kept: Bool
+            kept: Bool,
+            meetingSummary: String? = nil
         ) {
             self.id = id
             self.outcome = outcome
@@ -31,6 +33,7 @@ final class VoceController: NSViewController {
             self.speakerNames = speakerNames
             self.recordID = recordID
             self.kept = kept
+            self.meetingSummary = meetingSummary
         }
     }
 
@@ -431,13 +434,25 @@ final class VoceController: NSViewController {
                 sourceURL: nil,
                 speakerNames: record.namesBySpeaker,
                 recordID: record.id,
-                kept: true
+                kept: true,
+                meetingSummary: record.meetingSummary
             )
             render(.done(session))
         } catch {
             Log.error(.storage, error, context: "recent load failed")
             idleView.show(message: Copy.importFailed, isError: true)
         }
+    }
+
+    private func saveMeetingSummary(_ summary: String) {
+        guard var session = currentSession else { return }
+        session.meetingSummary = summary
+        if let id = session.recordID {
+            archive.updateMeetingSummary(id: id, summary: summary)
+            session.kept = true
+        }
+        replaceSession(session)
+        postHistoryChanged()
     }
 
     @objc func showSubtitleEditor() {
@@ -454,7 +469,8 @@ final class VoceController: NSViewController {
         let editor = SubtitleEditorWindowController(
             fileName: session.sourceName,
             cues: cues,
-            duration: session.outcome.durationSeconds
+            duration: session.outcome.durationSeconds,
+            audioURL: session.sourceURL
         )
         editor.onClose = { [weak self] in self?.subtitleEditor = nil }
         subtitleEditor = editor
@@ -469,8 +485,10 @@ final class VoceController: NSViewController {
         let window = SummaryWindowController(
             fileName: session.sourceName,
             transcript: session.outcome.transcript.text,
-            language: session.outcome.language
+            language: session.outcome.language,
+            existingSummary: session.meetingSummary
         )
+        window.onSummary = { [weak self] summary in self?.saveMeetingSummary(summary) }
         window.onClose = { [weak self] in self?.summaryWindow = nil }
         summaryWindow = window
         window.showWindow(nil)
@@ -653,7 +671,13 @@ final class VoceController: NSViewController {
                 selected: selected
             )
             let (banner, isError) = queueBanner()
-            resultView.showBanner(banner, isError: isError)
+            let failureAction = queueFailureAction()
+            resultView.showBanner(
+                banner,
+                isError: isError,
+                actionTitle: failureAction?.title,
+                action: failureAction?.action
+            )
             view.window?.makeFirstResponder(resultView.focusTarget)
         }
     }
@@ -691,6 +715,26 @@ final class VoceController: NSViewController {
         replaceSession(session)
         resultView.updateCaption(caption(for: session.outcome))
         postHistoryChanged()
+    }
+
+    private func queueFailureAction() -> (title: String, action: () -> Void)? {
+        guard !failedURLs.isEmpty, !queueFailures.isEmpty else { return nil }
+        let retry = failedURLs
+        switch lastFailure as? TranscribeError {
+        case .missingKey?:
+            return (Copy.setupButton, { [weak self] in self?.presentOnboarding(pending: retry) })
+        case .unauthorized?, .insufficientCredit?:
+            return (Copy.openSettings, { [weak self] in self?.showPreferences() })
+        default:
+            return (Copy.retryFailed, { [weak self] in self?.retryFailedFiles() })
+        }
+    }
+
+    private func retryFailedFiles() {
+        let urls = failedURLs
+        guard !urls.isEmpty else { return }
+        guard confirmDiscard(action: Copy.continueAction) else { return }
+        startQueue(urls)
     }
 
     private func queueBanner() -> (String?, Bool) {

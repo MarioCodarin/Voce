@@ -16,7 +16,7 @@ Requirements: macOS 14+, Swift 6 (Command Line Tools are enough), and optionally
 
 ## Before opening a pull request
 
-- `./scripts/test.sh` passes.
+- `./scripts/test.sh` passes; it also runs `scripts/check-localization.py`, which enforces a complete ES/FR/DE/PT catalog.
 - `swift build` is clean (the two `ld` search-path warnings from the Command Line Tools setup are pre-existing).
 - New behaviour has a test in `Tests/VoceKitTests` when it lives in `VoceKit`.
 - UI changes are checked in both light and dark appearance, at 760×600 and 640×500:
@@ -67,6 +67,10 @@ Add a case to `OutputFormat`, render it, and add a test with a small segment lis
 ## Privacy
 
 Never commit a real API key, a recording, a transcript or a glossary with real people's names. The bundled glossary (`Sources/VoceKit/Resources/glossary.txt`) is a neutral sample. Tests must use invented names.
+
+## Release
+
+Use `./scripts/release.sh` for zip/DMG/checksums. Developer ID signing and notarization are documented in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md); no credentials belong in the repository.
 
 ## License
 

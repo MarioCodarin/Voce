@@ -39,7 +39,7 @@ If a key leaks, revoke it at [openrouter.ai/keys](https://openrouter.ai/keys), c
 | Key validation | `https://openrouter.ai/api/v1/key` | When the user presses Check |
 | Everything else | Stays on the Mac | Always |
 
-OpenRouter forwards audio to the model provider that serves the request. Review OpenRouter's and the provider's privacy terms before transcribing confidential material. Summary and cleanup are the only paths that send transcript text; summary runs only when the user asks for it. Voce sends no telemetry, analytics, crash reports or usage data.
+OpenRouter forwards audio to the model provider that serves the request. Review OpenRouter's and the provider's privacy terms before transcribing confidential material. Summary and cleanup are the only paths that send transcript text; summary runs only when the user asks for it. Generated summaries are stored locally with the transcript only when history is enabled, and are included in the local search index. Voce sends no telemetry, analytics, crash reports or usage data.
 
 ## Local data and permissions
 

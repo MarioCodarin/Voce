@@ -75,8 +75,18 @@ final class ResultView: NSView {
     func beginEditingForPreview() { editClicked() }
     #endif
 
-    func showBanner(_ message: String?, isError: Bool = false) {
-        banner.show(message: message, style: isError ? .error : .info)
+    func showBanner(
+        _ message: String?,
+        isError: Bool = false,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
+        banner.show(
+            message: message,
+            style: isError ? .error : .info,
+            actionTitle: actionTitle,
+            action: action
+        )
     }
 
     private func updateQueuePopup(_ queue: [String], selected: Int?) {

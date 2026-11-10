@@ -50,11 +50,12 @@ After a batch, every completed file stays one click away:
 - Menu bar waveform with recent transcripts and “Transcribe a file…”.
 - Six interface languages: Italian, English, Spanish, French, German and Portuguese.
 - First-run onboarding with key validation and a link to create a key.
-- Optional AI summary and action items, in a separate window and never mixed into the verbatim transcript.
-- Subtitle editor: edit cue text and start/end times, add/delete cues, realign ends, export SRT/VTT/TXT.
-- Search across local history by text or speaker name.
+- Optional AI summary and action items, in a separate window and never mixed into the verbatim transcript. The summary is saved with the transcript when history is enabled and can be exported as Markdown.
+- Subtitle editor: edit cue text and start/end times, add/delete cues, realign ends, export SRT/VTT/TXT. It includes a waveform timeline with click/drag seek, playback when the source audio is available, and `⌥←/→` / `⌥↑/↓` keyboard re-timing.
+- Search across local history by text, speaker name or saved summary.
 - Glossary learning: when you rename speakers, add those names to the glossary in one click.
 - Drop an audio file directly on the menu-bar waveform.
+- Retry only the failed files in a batch, keeping the successful transcripts.
 - `--doctor` and a readable log for support.
 - Empty and offline states explain what happened and keep the file safe with a retry in place.
 - Cross-slice speaker re-identification: local speaker numbers that restart at a chunk seam are merged when the overlap text is strong enough.
@@ -148,7 +149,7 @@ Never commit a key. The repository contains no key, and `.gitignore` excludes ke
 | --- | --- | --- |
 | API key | macOS Keychain (service `it.voce.openrouter`) | Never in logs or the repo |
 | Audio | Sent to OpenRouter | Only as part of the transcription request |
-| Transcripts history | `~/Library/Application Support/Voce/Transcripts` | Opt-in, `0600`, max 100 records |
+| Transcripts history (with optional summaries) | `~/Library/Application Support/Voce/Transcripts` | Opt-in, `0600`, max 100 records |
 | Glossary | `~/.config/voce/glossary.txt` or the bundled sample | `0600`, local only |
 | Logs | `~/Library/Logs/Voce/voce.log` | Rotating, no key/transcript/paths |
 
@@ -219,6 +220,10 @@ Diagnostica:
 ```bash
 Voce --doctor
 ```
+
+## Release
+
+Build zip/DMG/checksums with `./scripts/release.sh`. Notarization, Developer ID signing and the update path are documented in [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ## License
 

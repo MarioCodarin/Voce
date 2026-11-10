@@ -1,6 +1,15 @@
 import AppKit
+import AVFoundation
 import UniformTypeIdentifiers
 import VoceKit
+
+private final class SubtitleTableView: NSTableView {
+    var onKeyDown: ((NSEvent) -> Bool)?
+    override func keyDown(with event: NSEvent) {
+        if onKeyDown?(event) == true { return }
+        super.keyDown(with: event)
+    }
+}
 
 /// Lightweight subtitle editor: start/end times and text per cue, with SRT/VTT/TXT export.
 /// It works on a copy of the transcript segments; the verbatim transcript is not changed.
@@ -11,15 +20,23 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
 
     private let fileName: String
     private let duration: Double
+    private let audioURL: URL?
     private var cues: [SubtitleCue]
-    private let tableView = NSTableView()
+    private let tableView = SubtitleTableView()
+    private let timeline = SubtitleTimelineView()
+    private let playButton = ActionButton(title: "", target: nil, action: nil)
     private let statusLabel = NSTextField(labelWithString: "")
     private var exportButton: ActionButton?
+    private var player: AVAudioPlayer?
+    private var playTimer: Timer?
+    private var waveformTask: Task<Void, Never>?
+    private var isSyncingSelection = false
 
-    init(fileName: String, cues: [SubtitleCue], duration: Double) {
+    init(fileName: String, cues: [SubtitleCue], duration: Double, audioURL: URL? = nil) {
         self.fileName = fileName
         self.cues = cues
         self.duration = duration
+        self.audioURL = audioURL
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
@@ -33,6 +50,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         super.init(window: window)
         window.delegate = self
         build(in: window)
+        loadPlayer()
         window.center()
     }
 
@@ -59,6 +77,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
 
         tableView.dataSource = self
         tableView.delegate = self
+        tableView.onKeyDown = { [weak self] event in self?.handleKey(event) ?? false }
         tableView.rowHeight = 32
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.allowsMultipleSelection = false
@@ -70,6 +89,31 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        playButton.title = Copy.subtitlePlay
+        playButton.style(accent: false)
+        playButton.target = self
+        playButton.action = #selector(togglePlay)
+        playButton.isEnabled = audioURL != nil
+        playButton.translatesAutoresizingMaskIntoConstraints = false
+        playButton.widthAnchor.constraint(equalToConstant: 100).isActive = true
+
+        timeline.translatesAutoresizingMaskIntoConstraints = false
+        timeline.onSeek = { [weak self] time in
+            guard let self else { return }
+            self.player?.currentTime = time
+            self.timeline.setPlayhead(time)
+        }
+        timeline.onSelect = { [weak self] index in
+            guard let self else { return }
+            self.selectCue(index, seek: false)
+        }
+
+        let timelineRow = NSStackView(views: [playButton, timeline])
+        timelineRow.orientation = .horizontal
+        timelineRow.alignment = .centerY
+        timelineRow.spacing = Space.s
+        timelineRow.translatesAutoresizingMaskIntoConstraints = false
 
         let add = ActionButton(title: Copy.subtitleAdd, target: self, action: #selector(addCue))
         add.style(accent: false)
@@ -93,7 +137,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         statusLabel.textColor = Palette.muted
         statusLabel.stringValue = Copy.subtitleEditorStatus(cues.count)
 
-        let stack = NSStackView(views: [hint, scroll, statusLabel, actions])
+        let stack = NSStackView(views: [hint, timelineRow, scroll, statusLabel, actions])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Space.s
@@ -106,6 +150,8 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: Space.l),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -Space.l),
             hint.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            timelineRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            timeline.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
             statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             actions.widthAnchor.constraint(equalTo: stack.widthAnchor)
@@ -116,10 +162,118 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         super.showWindow(sender)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
+        refreshTimeline()
         if !cues.isEmpty {
             tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
             tableView.scrollRowToVisible(0)
+            timeline.select(0)
         }
+        loadWaveform()
+    }
+
+    private func loadPlayer() {
+        guard let audioURL else { return }
+        player = try? AVAudioPlayer(contentsOf: audioURL)
+        player?.prepareToPlay()
+        playButton.isEnabled = player != nil
+    }
+
+    private func loadWaveform() {
+        guard let audioURL, waveformTask == nil else { return }
+        waveformTask = Task { [weak self] in
+            guard let peaks = try? await AudioWaveform.samples(from: audioURL) else { return }
+            guard let self, !Task.isCancelled else { return }
+            self.timeline.update(samples: peaks, cues: self.cues, duration: self.duration)
+            let row = self.tableView.selectedRow
+            if self.cues.indices.contains(row) {
+                self.timeline.setPlayhead(self.cues[row].start)
+            }
+        }
+    }
+
+    private func refreshTimeline() {
+        timeline.update(cues: cues, duration: duration)
+        let row = tableView.selectedRow
+        if cues.indices.contains(row) {
+            timeline.select(row)
+        }
+    }
+
+    private func selectCue(_ index: Int, seek: Bool) {
+        guard cues.indices.contains(index) else { return }
+        isSyncingSelection = true
+        tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        tableView.scrollRowToVisible(index)
+        isSyncingSelection = false
+        timeline.select(index)
+        if seek, let player {
+            player.currentTime = cues[index].start
+            timeline.setPlayhead(cues[index].start)
+        }
+    }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        let row = tableView.selectedRow
+        guard cues.indices.contains(row) else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let step = flags.contains(.shift) ? 1.0 : 0.1
+        let delta = event.keyCode == 124 ? step : event.keyCode == 123 ? -step : 0
+
+        let vertical = event.keyCode == 126 ? step : event.keyCode == 125 ? -step : 0
+        guard flags.contains(.option), delta != 0 || vertical != 0 else { return false }
+
+        var cue = cues[row]
+        if delta != 0 {
+            // Option+left/right moves the whole cue.
+            cue.start = max(0, cue.start + delta)
+            cue.end = max(cue.start + 0.05, cue.end + delta)
+        } else {
+            // Option+up/down trims the end.
+            cue.end = max(cue.start + 0.05, cue.end + vertical)
+        }
+        cues[row] = cue
+        tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integersIn: 0..<3))
+        refreshTimeline()
+        if let player {
+            player.currentTime = cue.start
+            timeline.setPlayhead(cue.start)
+        }
+        return true
+    }
+
+    @objc private func togglePlay() {
+        guard let player else { return }
+        if player.isPlaying {
+            player.pause()
+            playButton.title = Copy.subtitlePlay
+            stopPlayTimer()
+            return
+        }
+        if player.currentTime >= player.duration - 0.01 { player.currentTime = 0 }
+        player.play()
+        playButton.title = Copy.subtitlePause
+        startPlayTimer()
+    }
+
+    private func startPlayTimer() {
+        stopPlayTimer()
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let player = self.player else { return }
+                self.timeline.setPlayhead(player.currentTime)
+                if !player.isPlaying {
+                    self.playButton.title = Copy.subtitlePlay
+                    self.stopPlayTimer()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        playTimer = timer
+    }
+
+    private func stopPlayTimer() {
+        playTimer?.invalidate()
+        playTimer = nil
     }
 
     // MARK: - Table
@@ -150,6 +304,16 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         default: field.stringValue = cue.text
         }
         return field
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        guard !isSyncingSelection, cues.indices.contains(tableView.selectedRow) else { return }
+        let row = tableView.selectedRow
+        timeline.select(row)
+        if let player {
+            player.currentTime = cues[row].start
+            timeline.setPlayhead(cues[row].start)
+        }
     }
 
     func controlTextDidEndEditing(_ notification: Notification) {
@@ -187,6 +351,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
             ? SubtitleFormatter.timestamp(cue.start, comma: false)
             : column == 1 ? SubtitleFormatter.timestamp(cue.end, comma: false) : cue.text
         tableView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integersIn: 0..<3))
+        refreshTimeline()
     }
 
     // MARK: - Actions
@@ -199,6 +364,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
         let row = cues.count - 1
         tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         tableView.scrollRowToVisible(row)
+        refreshTimeline()
         statusLabel.stringValue = Copy.subtitleEditorStatus(cues.count)
     }
 
@@ -211,6 +377,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
             let next = min(row, cues.count - 1)
             tableView.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
         }
+        refreshTimeline()
         statusLabel.stringValue = Copy.subtitleEditorStatus(cues.count)
     }
 
@@ -226,6 +393,7 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
             cues[item.offset] = cue
         }
         tableView.reloadData()
+        refreshTimeline()
     }
 
     @objc private func exportClicked() {
@@ -286,6 +454,9 @@ final class SubtitleEditorWindowController: NSWindowController, NSWindowDelegate
     }
 
     func windowWillClose(_ notification: Notification) {
+        waveformTask?.cancel()
+        stopPlayTimer()
+        player?.stop()
         onClose?()
     }
 }

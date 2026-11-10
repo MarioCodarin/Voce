@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+python3 "$ROOT/scripts/check-localization.py"
+
 if xcode-select -p 2>/dev/null | grep -q "CommandLineTools"; then
   F="/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
   L="/Library/Developer/CommandLineTools/Library/Developer/usr/lib"

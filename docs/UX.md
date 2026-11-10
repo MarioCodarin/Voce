@@ -80,13 +80,19 @@ Priorities are impact on the core job ÷ effort. Everything here is optional; th
 - **Language packs.** Interface and audio languages now include Spanish, French, German and Portuguese. The full static copy catalog is translated; dynamic strings (dates, counts, queue messages, errors and status lines) are localized too. The interface follows the system language and can be changed in Settings.
 - **Menu-bar drop target.** A file dropped directly on the waveform in the menu bar opens Voce and enters the normal queue, without finding the window first.
 
-### Next after 2.2 — polish
+### Shipped in 2.3 — polish
 
-- **Persist summaries.** Keep the generated summary with the archived transcript and include it in exports.
-- **Batch retry.** Retry only failed files from the queue summary, without re-running successes.
-- **Subtitle waveform.** A cue timeline with waveform scrubbing and keyboard re-timing.
-- **Localization QA.** Run the six interface languages past native speakers and add plural rules where needed.
-- **Distribution.** Notarization and an update path so the Keychain prompt and Gatekeeper warning are less frequent.
+- **Summaries persist.** When history is enabled, the generated summary is stored with the transcript and reopened without another API call. It can be exported as Markdown.
+- **Retry only failures.** The result banner retries just the failed files from a batch, keeping successful transcripts. Fatal key/network failures still stop the queue and point at the right action.
+- **Subtitle waveform timeline.** The editor has a waveform envelope, cue blocks, click/drag seek, playback when the original audio is available, and keyboard re-timing (`⌥←/→`, `⌥↑/↓`, Shift for 1 s).
+- **Localization validation.** `scripts/check-localization.py` enforces a complete, non-stale ES/FR/DE/PT catalog in `scripts/test.sh` and CI.
+- **Release tooling.** `scripts/release.sh` produces zip/DMG/checksums and supports Developer ID signing, hardened runtime, notarization and stapling. The flow and credential requirements are in `docs/DISTRIBUTION.md`.
+
+### Still open
+
+- Native-speaker review of the Spanish, French, German and Portuguese packs; the catalog is complete, but tone and regional vocabulary should be checked.
+- A real notarized release and a clean-machine Gatekeeper check. The scripts are ready, but the Apple Developer credentials are not in this repository.
+- An auto-update path that preserves Keychain and `~/.config/voce`. Today updates are a manual download/install.
 
 ### Later — ambitious, only with evidence
 

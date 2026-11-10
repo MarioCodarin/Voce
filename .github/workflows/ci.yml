@@ -21,6 +21,9 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: Localization catalog
+        run: python3 scripts/check-localization.py
+
       - name: Build
         run: swift build
 
