@@ -604,7 +604,7 @@ final class VoceController: NSViewController {
     private func isFatal(_ error: Error) -> Bool {
         guard let error = error as? TranscribeError else { return false }
         switch error {
-        case .missingKey, .unauthorized, .insufficientCredit, .network:
+        case .missingKey, .unauthorized, .insufficientCredit, .network, .rateLimited:
             return true
         default:
             return false

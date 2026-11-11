@@ -57,7 +57,7 @@ struct OpenRouterClientTests {
         #expect(parseError(status: 403) == .unauthorized)
         #expect(parseError(status: 413) == .tooLarge)
         #expect(parseError(status: 500, body: #"{"error":{"message":"boom"}}"#) == .server(status: 500, message: "boom"))
-        #expect(parseError(status: 429) == .server(status: 429, message: "HTTP 429"))
+        #expect(parseError(status: 429) == .rateLimited(retryAfter: nil))
         #expect(parseError(status: 408, body: #"{"error":{"message":"Provider returned 408","code":408}}"#) == .timeout)
     }
 
@@ -68,11 +68,26 @@ struct OpenRouterClientTests {
 
     @Test func retryableClassification() {
         #expect(TranscribeError.network.isRetryable)
-        #expect(TranscribeError.server(status: 429, message: "").isRetryable)
+        #expect(TranscribeError.rateLimited(retryAfter: nil).isRetryable)
         #expect(TranscribeError.server(status: 503, message: "").isRetryable)
         #expect(TranscribeError.timeout.isRetryable)
         #expect(!TranscribeError.server(status: 400, message: "").isRetryable)
         #expect(!TranscribeError.unauthorized.isRetryable)
+    }
+
+    @Test func parsesRetryAfterHeader() throws {
+        let http = HTTPURLResponse(
+            url: TranscriptionConfig.endpoint,
+            statusCode: 429,
+            httpVersion: nil,
+            headerFields: ["Retry-After": "3"]
+        )!
+        do {
+            _ = try OpenRouterClient.parse(data: Data(), response: http)
+            Issue.record("expected a rate-limit error")
+        } catch {
+            #expect(error as? TranscribeError == .rateLimited(retryAfter: 3))
+        }
     }
 
     @Test func retriesTransientFailureThenSucceeds() async throws {

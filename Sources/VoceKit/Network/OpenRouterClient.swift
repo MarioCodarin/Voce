@@ -38,9 +38,13 @@ struct OpenRouterClient: Sendable {
             do {
                 return try await send(fileURL)
             } catch let error as TranscribeError where error.isRetryable && attempt < TranscriptionConfig.maxAttempts {
-                Log.warning(.network, "retry \(attempt + 1)/\(TranscriptionConfig.maxAttempts) reason=\(error.logDescription)")
+                var delay = retryDelay * (1 << (attempt - 1))
+                if case .rateLimited(let after) = error, let after {
+                    delay = max(delay, .seconds(min(after, 120)))
+                }
+                Log.warning(.network, "retry \(attempt + 1)/\(TranscriptionConfig.maxAttempts) reason=\(error.logDescription) delay=\(delay)")
                 onRetry?(attempt + 1)
-                try await Task.sleep(for: retryDelay * (1 << (attempt - 1)))
+                try await Task.sleep(for: delay)
                 attempt += 1
             }
         }
@@ -106,6 +110,7 @@ struct OpenRouterClient: Sendable {
         case 402: throw TranscribeError.insufficientCredit
         case 408, 504: throw TranscribeError.timeout
         case 413: throw TranscribeError.tooLarge
+        case 429: throw TranscribeError.rateLimited(retryAfter: Self.retryAfter(from: response))
         case 400...:
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error.message
             throw TranscribeError.server(status: status, message: message ?? "HTTP \(status)")
@@ -138,6 +143,21 @@ struct OpenRouterClient: Sendable {
     /// Whether a key works. The onboarding screen calls this without starting a transcription.
     static func checkKey(_ key: String, session: URLSession? = nil) async throws -> KeyChecker.Info {
         try await KeyChecker.check(key, session: session)
+    }
+
+    /// `Retry-After` may be seconds or an HTTP date. Values are clamped by the caller.
+    static func retryAfter(from response: URLResponse) -> TimeInterval? {
+        guard let http = response as? HTTPURLResponse,
+              let raw = http.value(forHTTPHeaderField: "Retry-After")?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        if let seconds = TimeInterval(raw) { return max(0, seconds) }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        guard let date = formatter.date(from: raw) else { return nil }
+        return max(0, date.timeIntervalSinceNow)
     }
 
     private struct VerboseBody: Decodable {

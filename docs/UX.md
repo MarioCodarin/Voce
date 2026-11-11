@@ -88,6 +88,11 @@ Priorities are impact on the core job ÷ effort. Everything here is optional; th
 - **Localization validation.** `scripts/check-localization.py` enforces a complete, non-stale ES/FR/DE/PT catalog in `scripts/test.sh` and CI.
 - **Release tooling.** `scripts/release.sh` produces zip/DMG/checksums and supports Developer ID signing, hardened runtime, notarization and stapling. The flow and credential requirements are in `docs/DISTRIBUTION.md`.
 
+### Shipped in 2.3.1 — provider resilience
+
+- **429 rate limits** are handled explicitly: `Retry-After` is respected (seconds or HTTP date), backoff is longer and allows six attempts, and the final message says the provider is rate-limited instead of showing an opaque provider string. A sustained limit stops the batch cleanly.
+- Verified against a 95-minute, 177 MB recording that previously produced repeated 429s.
+
 ### Still open
 
 - Native-speaker review of the Spanish, French, German and Portuguese packs; the catalog is complete, but tone and regional vocabulary should be checked.

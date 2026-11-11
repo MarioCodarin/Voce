@@ -17,7 +17,7 @@ enum TranscriptionConfig {
     /// Key validation is interactive; fail fast.
     static let keyTimeout: TimeInterval = 20
     /// Total attempts per chunk for transient failures (network, 429, 5xx).
-    static let maxAttempts = 3
+    static let maxAttempts = 6
 
     /// Cheap chat model for the cleanup pass and the optional summary.
     static let cleanupModel = "openai/gpt-4o-mini"

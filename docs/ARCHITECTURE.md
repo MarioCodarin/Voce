@@ -148,7 +148,7 @@ The interface follows the system language by default. `VOCE_UI_LANGUAGE=es|fr|de
 
 ## Testing
 
-122 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching and cross-seam re-identification, subtitle timestamps and custom cues, speaker renaming, cleanup guards and chunking, summary requests and prompts, archive save/load/prune/rebuild/text updates/summary persistence/search, waveform extraction, old-record decoding, settings defaults and language round-trips, global shortcut options, key parsing, language labels and status text, video formats, and output formats.
+123 tests cover chunk ranges, request shapes (multipart and streaming JSON), response tolerance, error mapping and retries, speaker stitching and cross-seam re-identification, subtitle timestamps and custom cues, speaker renaming, cleanup guards and chunking, summary requests and prompts, archive save/load/prune/rebuild/text updates/summary persistence/search, waveform extraction, old-record decoding, settings defaults and language round-trips, global shortcut options, key parsing, language labels and status text, video formats, and output formats.
 
 `./scripts/test.sh` handles the Command Line Tools-only setup, where the `Testing` macro plugin needs an explicit path and framework search path. With Xcode selected, `swift test` is enough.
 

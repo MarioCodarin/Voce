@@ -12,6 +12,7 @@ public enum TranscribeError: LocalizedError, Equatable {
     case tooLarge
     case network
     case timeout
+    case rateLimited(retryAfter: TimeInterval?)
     case server(status: Int, message: String)
 
     public var errorDescription: String? { message(for: .system) }
@@ -93,6 +94,15 @@ public enum TranscribeError: LocalizedError, Equatable {
                 "El servicio no respondió a tiempo", "Le service n'a pas répondu à temps",
                 "Der Dienst hat nicht rechtzeitig geantwortet", "O serviço não respondeu a tempo"
             )
+        case .rateLimited:
+            return pick(
+                "Il provider ha raggiunto il limite di richieste. Riprova tra poco.",
+                "The provider hit a rate limit. Try again in a moment.",
+                "El proveedor alcanzó su límite de solicitudes. Inténtalo de nuevo en un momento.",
+                "Le fournisseur a atteint sa limite de requêtes. Réessayez dans un instant.",
+                "Der Anbieter hat sein Anfrage-Limit erreicht. Versuche es gleich noch einmal.",
+                "O fornecedor atingiu o limite de pedidos. Tenta novamente dentro de momentos."
+            )
         case .server(_, let message):
             return message
         }
@@ -101,7 +111,7 @@ public enum TranscribeError: LocalizedError, Equatable {
     /// Worth trying again: connectivity loss, rate limiting, or a server-side fault.
     var isRetryable: Bool {
         switch self {
-        case .network, .timeout: true
+        case .network, .timeout, .rateLimited: true
         case .server(let status, _): status == 429 || status >= 500
         default: false
         }
@@ -110,6 +120,7 @@ public enum TranscribeError: LocalizedError, Equatable {
     /// Safe for logs: status codes only, never the provider message or user data.
     var logDescription: String {
         switch self {
+        case .rateLimited(let after): "rateLimited(after=\(after.map { String(Int($0)) } ?? "none"))"
         case .server(let status, _): "server(\(status))"
         case .unsupportedFormat: "unsupportedFormat"
         case .unreadableAudio: "unreadableAudio"

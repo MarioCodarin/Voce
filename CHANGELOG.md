@@ -2,6 +2,18 @@
 
 All notable changes to Voce. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] — 2026-11-11
+
+### Fixed
+
+- OpenRouter **429 responses are now treated as rate limits**, not opaque provider errors. Voce reads `Retry-After` (seconds or HTTP date), waits for it, and uses a longer exponential backoff with up to six attempts. A sustained rate limit gets a localized, actionable message and stops the batch instead of hammering the provider.
+- Long files that trigger repeated 429s (for example a 95-minute recording) no longer fail after only three quick attempts.
+- The retry path is covered by 123 tests, including `Retry-After` parsing.
+
+### Changed
+
+- Version bumped to 2.3.1 (build 6).
+
 ## [2.3.0] — 2026-11-10
 
 ### Added
