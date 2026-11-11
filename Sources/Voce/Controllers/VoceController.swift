@@ -112,7 +112,11 @@ final class VoceController: NSViewController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.settingsChanged() }
+            // Dispatch instead of a Task, so an AppKit exception during the refresh
+            // cannot unwind through the Swift concurrency runtime (see AppDelegate).
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.settingsChanged() }
+            }
         }
 
         render(.idle)

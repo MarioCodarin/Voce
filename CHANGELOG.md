@@ -2,6 +2,12 @@
 
 All notable changes to Voce. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows [Semantic Versioning](https://semver.org/).
 
+## [2.3.2] — 2026-11-11
+
+### Fixed
+
+- **Fixed a launch/time-delayed crash (SIGSEGV)** reported as `EXC_BAD_ACCESS` inside the Swift main-actor executor check (`FlippedView.isFlipped`, `StatusDropView.draw`). Root cause: rebuilding the menu-bar status menu re-attached the shared "Recent" submenu while the previous menu still owned it, so AppKit raised `NSInternalInconsistencyException` ("Menu to be set as submenu is already a submenu of some menu."). Thrown inside a Swift task, that exception corrupted the concurrency runtime and the app crashed later inside unrelated AppKit callbacks. The rebuild now detaches the submenu first, and the settings/shortcut observers run on the main queue via plain dispatch so a future AppKit exception cannot unwind through task frames.
+
 ## [2.3.1] — 2026-11-11
 
 ### Fixed

@@ -24,7 +24,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func refreshMenu() {
+        detachRecentSubmenu()
         statusItem.menu = buildMenu()
+    }
+
+    /// `buildMenu` attaches the shared recent submenu to a fresh item, but the
+    /// previous status menu still owns it. AppKit raises
+    /// `NSInternalInconsistencyException` — "Menu to be set as submenu is already
+    /// a submenu of some menu." — when that happens. Thrown inside a Swift task,
+    /// the exception unwinds through the concurrency runtime and leaves it
+    /// corrupted, so the app crashes later inside unrelated AppKit callbacks
+    /// (observed on macOS 26/27 as a SIGSEGV in the main-actor executor check).
+    /// Detaching the menu first keeps the rebuild exception-free.
+    private func detachRecentSubmenu() {
+        statusItem.menu?.items.first { $0.submenu === recentMenu }?.submenu = nil
     }
 
     private func configure() {

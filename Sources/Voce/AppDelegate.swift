@@ -59,10 +59,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let controller = self.controller else { return }
-                self.showMainWindow(nil)
-                controller.chooseFile()
+            // Plain dispatch, not a Task: an AppKit exception unwinding through
+            // Swift task frames corrupts the concurrency runtime and crashes the
+            // app far from the cause. Dispatch keeps the unwind in AppKit, which
+            // catches and logs menu/window exceptions.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, let controller = self.controller else { return }
+                    self.showMainWindow(nil)
+                    controller.chooseFile()
+                }
             }
         }
 
@@ -71,12 +77,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                NSApp.mainMenu = MainMenu.build()
-                self.statusItem?.setVisible(VoceSettings.menuBarEnabled)
-                self.statusItem?.refreshMenu()
-                self.configureGlobalShortcut()
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    NSApp.mainMenu = MainMenu.build()
+                    self.statusItem?.setVisible(VoceSettings.menuBarEnabled)
+                    self.statusItem?.refreshMenu()
+                    self.configureGlobalShortcut()
+                }
             }
         }
 
