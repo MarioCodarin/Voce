@@ -91,7 +91,7 @@ Priorities are impact on the core job ÷ effort. Everything here is optional; th
 ### Shipped in 2.3.1 — provider resilience
 
 - **429 rate limits** are handled explicitly: `Retry-After` is respected (seconds or HTTP date), backoff is longer and allows six attempts, and the final message says the provider is rate-limited instead of showing an opaque provider string. A sustained limit stops the batch cleanly.
-- Verified against a 95-minute, 177 MB recording that previously produced repeated 429s.
+- Reproduced on a 95-minute, 177 MB recording: the provider returned repeated 429s and the run still completed; the new retry policy and Retry-After parsing are covered by tests.
 
 ### Still open
 
